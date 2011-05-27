@@ -44,6 +44,8 @@ int main(void)
 
 	while (1)
 	   {
+
+	   }
     //reset_atmega128();
     //DDRA=0xFF;
    // SET_PORT_AS_OUTPUT(A,0);
@@ -134,7 +136,8 @@ void  reset_atmega128(void)
     RESET_PORT(F);
     RESET_PORT(G);
     ooTIMER0_STOP;
-
-    //
-
 }
+
+
+
+
