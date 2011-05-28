@@ -6,8 +6,10 @@
 #include <avr/pgmspace.h>
 
 #include "macro_atmega.h"
-#include "write_ppm.h"
+//#include "write_ppm.h"
+#include "serial.h"
 
+// PB5 Sortie PPM
 
 // TIMER1 overflow interrupt service routine
 // occurs every 0.5 seconds
@@ -33,19 +35,28 @@ ISR(TIMER0_OVF_vect)
 
     ooTIMER0_CT=speed;
 }
-
+ISR(TIMER1_COMPA_vect)
+{
+	SET_PORT_HIGH(A,7);
+	OCR1A=ooTIMER1_CT+100;
+}
 #define UART_BAUD_RATE 19200
 int main(void)
 {
    
 	SET_PORT_AS_OUTPUT(A,7);
+	SET_PORT_AS_OUTPUT(B,5);
 
-	SET_PORT_AS_OUTPUT(E,1);
+	serial0_init(19200);
+	serial1_init(115200);
 
-	while (1)
-	   {
+	//SET_PORT_AS_OUTPUT(E,1);
 
-	   }
+	//init_ppm();
+	//g_chanel1[0]=0;
+	//g_chanel1[1]=-500;
+	//g_chanel1[2]=500;
+
     //reset_atmega128();
     //DDRA=0xFF;
    // SET_PORT_AS_OUTPUT(A,0);
@@ -54,48 +65,44 @@ int main(void)
     //sei();
     //SET_PORT_AS_OUTPUT(D,3);
     //SET_PORT_AS_OUTPUT(E,1);
+	if(1==1)
+	{
+	OCR1A=0x1000;
+	ooTIMER1_NORMAL_MODE;
+	ooTIMER1_CT = 0x00;
+	//TIMSK = 1 << OCIE1A ;
+	SB_HIGH(TIMSK,OCIE1A);
+	ooTIMER1_COMP_A_TOOGLE;
+	ooTIMER1_SCALE_8;
+	}
 
-  unsigned char baudrateDiv;
 
-  baudrateDiv = (unsigned char)((F_CPU+(UART_BAUD_RATE*8L))/(UART_BAUD_RATE*16L)-1);
+	sei();
 
-  UBRR0H = baudrateDiv >> 8;
-  UBRR0L = baudrateDiv;
 
-  // ACTIVER LA RECEPTION ET L'EMISSION
-  UCSR0B = (1 << RXEN0) | (1 << TXEN0);
 
-  // SET 1 STOP BIT ET 8BIT MESSAGE
-  UCSR0C = (0 << USBS0) | (3 << UCSZ0);
-
-  // ENABLE ITERRUPT FOR RECE
-  //SB_HIGH(UCSR0B,RXCIE0);
-
-  	  //GESTION SERIAL 2
-  	UBRR1H = baudrateDiv >> 8;
-    UBRR1L = baudrateDiv;
-
-    // ACTIVER LA RECEPTION ET L'EMISSION
-    UCSR1B = (1 << RXEN1) | (1 << TXEN1);
-
-    // SET 1 STOP BIT ET 8BIT MESSAGE
-    UCSR1C = (0 << USBS1) | (3 << UCSZ1);
-
-    // ENABLE ITERRUPT FOR RECE
-    //SB_HIGH(UCSR1B,RXCIE1);
 while (1)
    {
 
 
 
 
-	SET_PORT_HIGH(A,7);
+	//SET_PORT_HIGH(A,7);
     _delay_ms(100);
 
+    serial0_writechar('V');
+    serial0_writechar('I');
+    serial0_writechar('C');
+    serial1_writechar('E');
+    serial1_writechar('N');
+    serial1_writechar('T');
 
-    USART1_Transmit('V');
-    USART0_Transmit('D');
-    SET_PORT_LOW(A,7);
+
+
+
+
+    //write_ppm();
+    //SET_PORT_LOW(A,7);
        _delay_ms(100);
     }
 
@@ -103,26 +110,7 @@ while (1)
 return 1;
 }
 
-/*
- *
-PE1 PDO/TXD0 (Programming Data Output or UART0 Transmit Pin)
-PE0 PDI/RXD0 (Programming Data Input or UART0 Receive Pin)
- */
-void USART0_Transmit( unsigned char data ) {
- loop_until_bit_is_set(UCSR0A, UDRE);
-  UDR0 = data;
-}
 
-
-/*
-
- PD3 INT3/TXD1(1) (External Interrupt3 Input or UART1 Transmit Pin)
-PD2 INT2/RXD1(1) (External Interrupt2 Input or UART1 Receive Pin
- */
-void USART1_Transmit( unsigned char data ) {
- loop_until_bit_is_set(UCSR1A, UDRE1);
-  UDR1 = data;
-}
 
 void  reset_atmega128(void)
 {

@@ -7,7 +7,7 @@
 #define MAX_CHANEL_NUMBER 8                                    //Max number of channels
 #ifndef WRITE_PPM_C
 
-extern signed int      read_ppm[MAX_CHANEL_NUMBER];
+extern signed int      g_chanel1[MAX_CHANEL_NUMBER];
 //extern unsigned char  g_read_ppm_Timer_overflow;
 #define read_ppm_chanel(CHANEL)  read_ppm[CHANEL]
 #endif
