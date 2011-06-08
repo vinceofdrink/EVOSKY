@@ -6,7 +6,7 @@
 #include <avr/pgmspace.h>
 
 #include "macro_atmega.h"
-//#include "write_ppm.h"
+#include "write_ppm.h"
 #include "serial.h"
 
 // PB5 Sortie PPM
@@ -19,6 +19,7 @@ void  reset_atmega128(void);
 void USART_Transmit( unsigned char );
 volatile unsigned char toggle_port=1;
 volatile unsigned char speed=0;
+
 
 ISR(TIMER0_OVF_vect)
 {
@@ -35,11 +36,13 @@ ISR(TIMER0_OVF_vect)
 
     ooTIMER0_CT=speed;
 }
+/*
 ISR(TIMER1_COMPA_vect)
 {
 	SET_PORT_HIGH(A,7);
 	OCR1A=ooTIMER1_CT+100;
 }
+*/
 #define UART_BAUD_RATE 19200
 int main(void)
 {
@@ -52,10 +55,10 @@ int main(void)
 
 	//SET_PORT_AS_OUTPUT(E,1);
 
-	//init_ppm();
-	//g_chanel1[0]=0;
-	//g_chanel1[1]=-500;
-	//g_chanel1[2]=500;
+	init_ppm();
+	g_chanel1[0]=0;
+	g_chanel1[1]=-500;
+	g_chanel1[2]=500;
 
     //reset_atmega128();
     //DDRA=0xFF;
@@ -65,7 +68,7 @@ int main(void)
     //sei();
     //SET_PORT_AS_OUTPUT(D,3);
     //SET_PORT_AS_OUTPUT(E,1);
-	if(1==1)
+	if(0==1)
 	{
 	OCR1A=0x1000;
 	ooTIMER1_NORMAL_MODE;
@@ -96,7 +99,7 @@ while (1)
     serial1_writechar('E');
     serial1_writechar('N');
     serial1_writechar('T');
-
+    write_ppm();
 
 
 

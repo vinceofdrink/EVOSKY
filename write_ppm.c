@@ -107,8 +107,7 @@ void write_ppm(void)
 
 
 // Timer 1 Comparator A (use for PPM1 modulation)
-//ISR(TIMER1_COMPA_vect)
-void cogno()
+ISR(TIMER1_COMPA_vect)
 {
 
    cli();
