@@ -3,8 +3,10 @@
 #include "macro_atmega.h"
 // OPTION
 //#define PPM_PIN_OSCILLOSCOPE_SYNC 4                          //Uncomment if you need a rising edge on the pin of your choice for oscilloscope Sync Trigger
-//#define PPM_2_SIGNAL                                         //Uncomment if you need to genrate 2 distinct PPM signal
-#define NUMBER_OF_PPM_SIGNAL 1                                 //You can handle up to 2 distinct PPM signal at the same time
+//#define PPM_2_SIGNAL                                         //Uncomment if you need to generate 2 distincts PPM signal
+
+//NOT TESTED ALREADY
+#define NUMBER_OF_PPM_SIGNAL 1                                 //You can handle up to 2 distincts PPM signals at the same time
 
 
 

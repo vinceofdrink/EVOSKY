@@ -18,12 +18,21 @@
 
 #define SET_PORT_HIGH(PORT_NAME,PORT_NUM)           SB_HIGH(PORT##PORT_NAME,PORT_NUM)
 #define SET_PORT_LOW(PORT_NAME,PORT_NUM)            SB_LOW(PORT##PORT_NAME,PORT_NUM)
+#define TOOGLE_PORT(PORT_NAME,PORT_NUM)				PORT##PORT_NAME ^= (1 << PORT_NUM)
+#define READ_PORT(PORT_NAME,PORT_NUM)				PORT##PORT_NAME & (1 << PORT_NUM)
 
 #define SB_HIGH(TARGET,BIT)   TARGET|=_BV(BIT)      // SET BIT TO 1
 #define SB_LOW(TARGET,BIT)    TARGET&=~_BV(BIT)     // SET BIT TO 0
 #define sbi(TARGET,BIT)       TARGET|=_BV(BIT)      // SET BIT TO 1
 #define cbi(TARGET,BIT)       TARGET&=~_BV(BIT)     // SET BIT TO 0
+//MISC STUFF
 
+#ifndef TRUE
+#define TRUE	1
+#endif
+#ifndef TRUE
+#define FALSE 	0
+#endif
 
 //###################################################################################
 //# HARDWARE INTERUPTION ON PIN 2 & 3
@@ -36,7 +45,7 @@
 #define FALLING 2
 #define RISING 3
 
-#if defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__)
+#if (defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__) )
 #define interrupt_fct_pin2            SIGNAL(INT0_vect)
 #define start_interrupt_pin2(MODE)    EICRA = (EICRA & ~((1 << ISC00) | (1 << ISC01))) | (MODE << ISC00);  EIMSK |= (1 << INT0)
 #define stop_interrupt_pin2()         EIMSK &= ~(1 << INT0)
@@ -109,6 +118,7 @@
     #define ooTIMER0_SCALE_32               TCCR0 = 0<<CS02 | 1<<CS01 | 1<<CS00  //500000
     #define ooTIMER0_SCALE_64               TCCR0 = 1<<CS02 | 0<<CS01 | 0<<CS00  //250000
     #define ooTIMER0_SCALE_128              TCCR0 = 1<<CS02 | 0<<CS01 | 1<<CS00
+	#define ooTIMER0_SCALE_256              TCCR0 = 1<<CS02 | 0<<CS01 | 1<<CS00
     #define ooTIMER0_SCALE_1024             TCCR0 = 1<<CS02 | 1<<CS01 | 1<<CS00
     #define ooTIMER0_CT                     TCNT0
     #define ooTIMER0_COMP_A                 OCR0; 

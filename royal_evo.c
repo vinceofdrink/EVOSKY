@@ -4,31 +4,54 @@
 // http://www.yannickf.net/spip/spip.php?article106
 /***********************************************************************************************************/
 #include <util/delay.h>
-
+#define ROYAL_EVO_C_
 #include "write_ppm.h"
 #include "serial.h"
 #include "royal_evo.h"
-
+#include "macro_atmega.h"
 signed int MPX_voie[16]; //Multiplex Data Chanel
 char nbvoies=0; 
 unsigned char emulation_mode=1;
 unsigned int evo_rssi=100;
 
-royal_tememetry_struct  royal_tele[14];
-void init_royal()
+unsigned char evo_tele_ct=0;		//COUNTER OF TELEMETRY TO SEND FOR EACH FRAME
+
+
+// The timer is activated after the intro sequence and is reset after each input event of UART0
+// If we overflow we do presume that we have a new frame ready from royal evo
+ISR(TIMER0_OVF_vect)
+{
+	ooTIMER0_STOP;
+	OCR0=1;
+
+}
+
+struct royal_tememetry_struct  royal_tele[14];
+void init_royal(void)
 {
   for(int i=0;i<12;i++)
    royal_tele[i].unite=0;
+
+  end_evo_transaction(init_evo_negotiation());
+
+  //We use OCR0B Register as a semaphore that tell us if we have a new frame ready to be handle
+  OCR0=0;
+  ooTIMER0_SCALE_8;
+  ooTIMER0_OVERFLOW_ON;
+
+
+
+
 }
-//This function decode royal evo frame by reading the linear lowlevel UART buffer
-void decode_evo_data()
+//This function decode royal evo frame by reading the linear  UART buffer
+void decode_evo_data(void)
 {
   unsigned char i;
   unsigned char buffer_ct=0;
   if (emulation_mode)
       {nbvoies=5+emulation_mode;} // 5 + nbre choisi par les cavaliers 
   else
-      {nbvoies=Read_Low_Level_Serial_Buffer(0);} //1ere donnÈe = nbre de voies
+      {nbvoies=serial0_direct_buffer_read(0);} //1ere donnÈe = nbre de voies
 
   if (nbvoies>12) {nbvoies=12;} //PPM12 au maximum
   if (nbvoies<6) {nbvoies=6;}; //PPM6 au minimum
@@ -40,9 +63,9 @@ void decode_evo_data()
   {
              
       buffer_ct++;
-      MPX_voie[i]= (Read_Low_Level_Serial_Buffer(buffer_ct));
+      MPX_voie[i]= (serial0_direct_buffer_read(buffer_ct));
       buffer_ct++;
-      MPX_voie[i]+=((Read_Low_Level_Serial_Buffer(buffer_ct))<<8);
+      MPX_voie[i]+=((serial0_direct_buffer_read(buffer_ct))<<8);
       
       if (MPX_voie[i]>=0x8000) {MPX_voie[i]=(signed int) (MPX_voie[i]-0x10000);}
 
@@ -50,19 +73,21 @@ void decode_evo_data()
               
 			
   }
-		
-	
-		
-               
-		
-		
+  //We restart the timer0 to trigger the next input from RoyalEvo
+  ooTIMER0_SCALE_8;
+  OCR0=0;
 }
 //*********************************************************************************************
 //* NEGOTIATION ROYAL EVO (AT STARTUP DIALOG TO FIND OUT WHAT KIND OF MODULE IS CONNECTED)
 //*********************************************************************************************
-unsigned char init_evo_negotiation()
+
+
+unsigned char init_evo_negotiation(void)
 {
-  unsigned char c;
+
+	serial0_close();
+	serial0_init(19200);
+  unsigned char c=0;
   unsigned int escape=0;
   do
 	{
@@ -71,10 +96,10 @@ unsigned char init_evo_negotiation()
                if(escape==65500)
                  return 'g';
                 
-             if(serial_data_waiting())
+             if(serial0_NewData())
              {
                
-  		c =  serial_read_last(); //on rÈcupËre la derniËre donnÈes reÁue
+  		c =  serial0_readchar(); //on rÈcupËre la derniËre donnÈes reÁue
   		if (c=='v') // on rÈpond ‡ la radio qui veut savoir le type de module utilisÈ
   		{
 			//LED_PORT |= (1<<LED_NUM);// led allumÈe
@@ -82,14 +107,14 @@ unsigned char init_evo_negotiation()
 			//LED_PORT &= ~(1<<LED_NUM);// led Èteinte
 			
 			if (emulation_mode)
-			{uart_puts("M-LINK   V3027");} // module M-LINK 2.4 GHz
+			{serial0_writestring("M-LINK   V3200");} // module M-LINK 2.4 GHz
 			else
 			{
 			//uart_puts("40  HFMS2V268 Jul 11 200812:52:44"); //module 40 MHz
-			uart_puts("35ABHFMS2V268 Jul 11 200812:52:00"); //module 35 MHz
+				serial0_writestring("35ABHFMS2V268 Jul 11 200812:52:00"); //module 35 MHz
 			}
-			uart_putc(0x0D);
-			uart_putc(0x0A);
+			serial0_writechar(0x0D);
+			serial0_writechar(0x0A);
 		
 			//on remet le buffer au dÈbut (en principe, ‡ ce moment, il n'y a qu'un octet)
 
@@ -98,23 +123,24 @@ unsigned char init_evo_negotiation()
 		// LA RADIO DEMANDE LA FREQUENCE UTILISEE AU MODULE
 		if ((c=='?') | (c=='+') | (c=='-')) // on rÈpond ‡ la radio qui veut connaitre la frÈquence utilisÈ
 		{
+
 			_delay_ms(12);
-			uart_puts("35AB2G402400"); // module 35 MHz
+			serial0_writestring("35AB2G402400"); // module 35 MHz
 			//uart_puts("40  051406750"); // module 40 MHz
 			//avec un module MLINK, la radio ne demande pas la frÈquence
-			uart_putc(0x01); // ??
+			serial0_writechar(0x01); // ??
 		
 
 			_delay_ms(12);
-			//uart_putc(0x03); // ?? //scanner 35 MHz rÈpond que la frÈquence est libre
-			//uart_putc(0x0F); // ??
-			//uart_putc('0'); // ??
-			uart_putc(0x40); // ?? // pas de scanner 40 MHz, il faut confirmer qu'on veut utiliser cette frÈquence
-			uart_putc(0x0A); // ??	
-			uart_putc(0x33); // ??
+			//serial0_writechar(0x03); // ?? //scanner 35 MHz rÈpond que la frÈquence est libre
+			//serial0_writechar(0x0F); // ??
+			//serial0_writechar('0'); // ??
+			serial0_writechar(0x40); // ?? // pas de scanner 40 MHz, il faut confirmer qu'on veut utiliser cette frÈquence
+			serial0_writechar(0x0A); // ??
+			serial0_writechar(0x33); // ??
 		
-			uart_putc(0x0D); // fin de la transmission
-			uart_putc(0x0A);
+			serial0_writechar(0x0D); // fin de la transmission
+			serial0_writechar(0x0A);
 
 			//LED_PORT |= (1<<LED_NUM);// led allumÈe
 			_delay_ms(12);
@@ -192,26 +218,26 @@ void end_evo_transaction(unsigned char c)
 void send_commonbind(void) //inutile pour un module 35 ou 40 MHz
 {
 	// 4 octets qui sont prÈsents, binding en cours ou pas
-	uart_putc(0xFF); // ??	
-	uart_putc(0x00); // ??	
-	uart_putc(0x00); // ??	
-	uart_putc(0x00); // ??
+	serial0_writechar(0xFF); // ??
+	serial0_writechar(0x00); // ??
+	serial0_writechar(0x00); // ??
+	serial0_writechar(0x00); // ??
 }
 void send_bind(void) //inutile pour un module 35 ou 40 MHz
 {
-	uart_putc(0x20); // ?? // 0x00 si pas de binding, 0x20 si binding en cours
+	serial0_writechar(0x20); // ?? // 0x00 si pas de binding, 0x20 si binding en cours
 	send_commonbind();
 }
 
 void send_nobind(void) //inutile pour un module 35 ou 40 MHz
 {
-	uart_putc(0x00); // ?? // 0x00 si pas de binding, 0x20 si binding en cours
+	serial0_writechar(0x00); // ?? // 0x00 si pas de binding, 0x20 si binding en cours
 	send_commonbind();
 }
 
 void send_range(void) //inutile pour un module 35 ou 40 MHz
 {
-	uart_putc(0x40); 
+	serial0_writechar(0x40);
 	send_commonbind();
 }
 
@@ -228,20 +254,20 @@ void send_telemetry(unsigned char position, unsigned char unite,signed int valeu
 	if (alarme) valeur++; // on ajoute 1 si on veut l'alarme
 	 
 	//1er octet (alarme de portÈe)
-	if (evo_rssi<=30) uart_putc(0x40); else uart_putc(0x00); 
+	if (evo_rssi<=30) serial0_writechar(0x40); else serial0_writechar(0x00);
 	//2e octet
-	uart_putc(0x01);// pas selon stoeckli
+	serial0_writechar(0x01);// pas selon stoeckli
 	//3e octet (position ‡ l'Ècran + unitÈ de mesure)
-	uart_putc( (position<<4) + unite );
+	serial0_writechar( (position<<4) + unite );
 	//4e octet (poids faible de la valeur)
-	uart_putc( (char)valeur );
+	serial0_writechar( (char)valeur );
 	//5e octet (poids fort de la valeur)
-	uart_putc( (char)(valeur>>8) );
+	serial0_writechar( (char)(valeur>>8) );
 	// on dirait qu'il faut finir par OO selon stoeckli
-	uart_putc(0x00);
+	serial0_writechar(0x00);
 }
 
-unsigned char evo_tele_ct=0;
+
 void send_evo_telemetry()
 {
 
@@ -253,18 +279,18 @@ void send_evo_telemetry()
   if (royal_tele[evo_tele_ct].alarme) valeur++; // on ajoute 1 si on veut l'alarme
 
   //1er octet (alarme de portÈe)
-  if (evo_rssi<=30) uart_putc(0x40); 
-  else uart_putc(0x00); 
+  if (evo_rssi<=30) serial0_writechar(0x40);
+  else serial0_writechar(0x00);
   //2e octet
-  uart_putc(0x01);// pas selon stoeckli
+  serial0_writechar(0x01);// pas selon stoeckli
   //3e octet (position ‡ l'Ècran + unitÈ de mesure)
-  uart_putc( (evo_tele_ct<<4) + royal_tele[evo_tele_ct].unite );
+  serial0_writechar( (evo_tele_ct<<4) + royal_tele[evo_tele_ct].unite );
   //4e octet (poids faible de la valeur)
-  uart_putc( (char)valeur );
+  serial0_writechar( (char)valeur );
   //5e octet (poids fort de la valeur)
-  uart_putc( (char)(valeur>>8) );
+  serial0_writechar( (char)(valeur>>8) );
   // on dirait qu'il faut finir par OO selon stoeckli
-  uart_putc(0x00);
+  serial0_writechar(0x00);
   evo_tele_ct++;
   if(royal_tele[ evo_tele_ct].unite==0)
    evo_tele_ct=0;
