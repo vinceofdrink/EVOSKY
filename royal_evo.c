@@ -23,12 +23,13 @@ ISR(TIMER0_OVF_vect)
 {
 	ooTIMER0_STOP;
 	OCR0=1;
-
+	serial0_reset_ct(); // RESET THE BUFFER OF SERIAL_0 (WE NOT USING THE CIRCULAR BUFFER PROPERTY IN THIS APPLICATION
 }
 
 struct royal_tememetry_struct  royal_tele[14];
-void init_royal(void)
+void init_royal(unsigned char standard_boot)
 {
+
   for(int i=0;i<12;i++)
    royal_tele[i].unite=0;
 
@@ -244,6 +245,7 @@ void send_range(void) //inutile pour un module 35 ou 40 MHz
 //*********************************************************************************************
 //* TELEMETRY
 //*********************************************************************************************
+// #1+2#
 void send_telemetry(unsigned char position, unsigned char unite,signed int valeur, unsigned char alarme)
 {
   
@@ -257,7 +259,7 @@ void send_telemetry(unsigned char position, unsigned char unite,signed int valeu
 	if (evo_rssi<=30) serial0_writechar(0x40); else serial0_writechar(0x00);
 	//2e octet
 	serial0_writechar(0x01);// pas selon stoeckli
-	//3e octet (position â€¡ l'Ãˆcran + unitÃˆ de mesure)
+	//3e octet (position à l'éˆcran + unitéeˆ de mesure)
 	serial0_writechar( (position<<4) + unite );
 	//4e octet (poids faible de la valeur)
 	serial0_writechar( (char)valeur );

@@ -1,3 +1,16 @@
+/*
+ * File:   write_ppm.c
+ * Author: vince
+ *
+ * Created on 16 mars 2011, 00:14
+ *
+ * This functions perform the generation of PPM Stream using TIMER2 to schedule event.
+ * As an upgrade i plan to allow the generation of 2 distinct PPM stream using the COMP_B register comparator
+ * So do not try to set NUMBER_OF_PPM_SIGNAL at 2
+ *
+ * Typical usage is
+ *
+ */
 #define WRITE_PPM_C
 #include "write_ppm.h"
 #include "macro_atmega.h"
@@ -83,6 +96,8 @@ void write_ppm(void)
       return;
     unsigned int previous_change=PPM_OFFSET;
     unsigned char i;
+
+    //Calculation of the timing datagram of the PPM
     for( i=0; i !=MAX_CHANEL_NUMBER; i++)
     {
 
@@ -93,13 +108,13 @@ void write_ppm(void)
     g_ppm1_timing[(MAX_CHANEL_NUMBER*2)+1] = PPM_FULL_FRAME  ;
 
     //Set the next compare point
-      OCR1A   = PPM_OFFSET;
+    OCR1A   = PPM_OFFSET;
     //g_ppm1_timing[0];
     //Reset the Timer Counter to Zero
     ooTIMER1_CT = 0x00;
     //Enable Interrupt on Compare A
     //ooTIMER1_INT_A_COMP_START(); //TIMSK1 = 1 << OCIE1A ;
-     TIMSK = 1 << OCIE1A ;
+    TIMSK = 1 << OCIE1A ;
     ooTIMER1_COMP_A_TOOGLE;
     //Start The timer
     ooTIMER1_SCALE_8;

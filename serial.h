@@ -25,6 +25,8 @@ unsigned char serial1_readchar(void);
 
 #define serial0_NewData()  serial0_input_writect!=serial0_input_readct
 #define serial0_reset_ct()	serial0_input_writect=serial0_input_readct=0
+
+//READ DIRECTLY AT THE SPECIFY X POSITION INTO THE CIRCULAR BUFFER OF serial0
 #define serial0_direct_buffer_read(X)	serial0_input[X]
 
 

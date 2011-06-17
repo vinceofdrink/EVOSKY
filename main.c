@@ -4,65 +4,119 @@
 #include <util/delay.h>
 #include <inttypes.h>
 #include <avr/pgmspace.h>
-
+#include <avr/wdt.h>
 #include "macro_atmega.h"
 #include "write_ppm.h"
 #include "serial.h"
 #include "royal_evo.h"
 #include "FrSky.h"
-// PB5 Sortie PPM
 
+// OUTPUT USED ON ATMEGA128
+
+// PB5 Sortie PPM  -> SHOULD BE CONNECT TO FRSKY INPUT PPM //  1K Ohm Resistor is problably welcome between AVR-FRSKY PPM CNX
+
+// PA7 ON BOARD LED -> USE FOR THE STATUT LED ON BOARD (I USE A 1K Ohm Resistor)
+// PA6 SWITCH THAT SHOULD CONNECT TO GROUND AND ALLOW MODE SELECTION  SHOULD BE PLACED ON THE OUTSIDE OF ROYAL EVO
+
+
+#define OPTION_WATCHDOG	1  //Use WATCHDOG TO RESET IF THE PROGRAM IS PRESUMED BRICK
+#define OPTION_BROWN_OUT 0 //SET TO 1 IF WE WANT TO CHECK BROWN_OUT OPTION TO DETECT VOLTAGE GARBAGE
 // TIMER1 overflow interrupt service routine
 // occurs every 0.5 seconds
 //const unsigned char ATBD[] PROGMEM = "ATBD";
+
 
 #define MODE_FLY  		1
 #define MODE_USB_ROYAL	2
 #define MODE_USB_FRSKY	3
 
-
-
-void  reset_atmega128(void);
-void USART_Transmit( unsigned char );
-volatile unsigned char toggle_port=1;
-volatile unsigned char speed=0;
-
-
-
-/*
-ISR(TIMER1_COMPA_vect)
-{
-	SET_PORT_HIGH(A,7);
-	OCR1A=ooTIMER1_CT+100;
-}
-*/
-#define UART_BAUD_RATE 19200
 int main(void)
 {
-	unsigned char mode;	//DETERMINE WICH MODE WE RUN THE PROGRAM
+	unsigned char mode;	//STORE WICH MODE WE RUN THE PROGRAM
+	unsigned char standard_boot=TRUE;
+	//WE TRY TO DETECT WHAT KING OF POWER-ON WE ARE FACING
+
+	//I plan to make a visual alarm that would reflect BROWN-OUT and WATCHDOG event because
+	//There are real threat for a cool and nice FLY :)
+
+	#if OPTION_WATCHDOG==1
+	//WATCHDOG ISSUE (NOT COOL MEANS A SOFTWARE BUG OR VOLTAGE GARBAGE AS STUCK
+	//THE PROGRAM MORE THAT 120MS THATS ABOUT 4/5 PPM Cycle that have not been send (I reset Watchdog on every PPM CALL)
+	if( READ_BIT(MCUCSR,WDRF))
+	{
+		// At least here i will try to bind again with royal evo even if i have to skip
+		// The negotiation pahse that maybe is aleready done and royal is problably sending me a Channel Position
+
+		standard_boot=FALSE;
+		SB_LOW(MCUCSR,WDRF);
+	}
+	#endif
+
+	#if OPTION_BROWN_OUT==1
+		//BROWN-OUT
+		// Means we have poor power source for our avr and Brown-out as trigered a reset
+		if( READ_BIT(MCUCSR,BORF))
+		{
+			//Same scenario as watchdog event
+			standard_boot=FALSE;
+			SB_LOW(MCUCSR,WDRF);
+		}
+	#endif
+	//Reset BY USER PRESSING RESET BUTTON
+	if( READ_BIT(MCUCSR,EXTRF))
+	{
+		//Nothing special
+	}
+
+	//Reset from Normal Power On
+	if( READ_BIT(MCUCSR,PORF))
+	{
+		//nothing special
+	}
+
 
 	//RIGHT NOW I ASSIGN BY DEFAULT THE MODE_FLY WICH IS THE NORMAL MODE
 	mode=MODE_FLY;
-	signed int test;
+
+	//WE SUPPOSE TROUBLE ON BOOT  (WatchDog or Brown-out) FORCE the mode to MODE_FLY
+	//TO BEGIN AS FAST AS POSSIBLE THE PPM EMISSION
+	if(!standard_boot)
+		mode=MODE_FLY;
+	signed int test=0;
 
 
 	switch(mode)
 	{
 		case MODE_FLY:
-			init_FrSky();				//Initialise Cnx with Frsky Module
-			init_royal();				//Initialise Cnx with Royal Evo
+			Init_FrSky();				//Initialise Cnx with Frsky Module
+			init_royal(standard_boot);	//Initialise Cnx with Royal Evo (standard boot means we will wait for real negotiation with royal evo otherwise if we cannot akwnoledge Royal evo we skip try several nego and then start directly to listening to channel position stream
+			init_ppm();					//Initialise PPM Writer
+
+			//We activate the watchdog that will trigger a reset if wdt_reset() is not call every 120MS
+			#if OPTION_WATCHDOG==1
+				wdt_enable(WDTO_120MS);
+			#endif
 			while(TRUE)
 			{
 
 				if(royal_trame_ok())	//Test if we have a valid data from EVO
 				{
+					#if OPTION_WATCHDOG==1
+					wdt_reset();
+					#endif
 					//DECODE PART AND PPM
 					 decode_evo_data(); //Decode data from evo and fill the chanel value into ppm module
 					 write_ppm();		//Write a PPM Signal (Asynchrone process)
-					 read_FrSky();		//Read Data receive from FRSKY
+					 Read_FrSky();		//Read Data receive from FRSKY
 					//HANDLING TELEMETRY DATA
-
-					 set_royal_evo_rssi(get_FrSky_rssi1());	//ASSIGN rssi
+					 if(NewUserDataFrSky())
+					 {
+						 //HANDLE USER SERIAL STREAM FROM FRSKY (DATA SEND FROM RX)
+						 unsigned char tmp;
+						 tmp=ReadUserDataFrSky();
+						 //DO NOTHING RIGHT NOW BUT I WILL DEFINE A PROTOCOL TO REMOTLY FROM RX ASSIGN DATA TO TELEMETRY CHANNEL
+					 }
+					 set_royal_evo_rssi(get_FrSky_rssi_up_link());	//ASSIGN rssi
 					 test++;
 					 set_evo_telemetry(0,UNIT_V,test,0);  //FILL THE VALUE
 
@@ -72,7 +126,6 @@ int main(void)
 		break;
 
 		case MODE_USB_ROYAL:
-
 		break;
 
 		case MODE_USB_FRSKY:

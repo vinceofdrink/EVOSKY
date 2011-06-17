@@ -18,7 +18,7 @@ struct royal_tememetry_struct
 #else
 extern struct royal_tememetry_struct  royal_tele[14];
 #endif
-//define pour la télÃ©mÃ©trie
+//define pour la télémétrie
 #define UNIT_V		1
 #define UNIT_A		2
 #define UNIT_MS		3
@@ -40,7 +40,7 @@ extern unsigned int evo_rssi;
 extern signed int MPX_voie[16];
 
 //FUNCTION DECLARATION
-void init_royal(void);
+void init_royal(unsigned char standard_boot);
 void decode_evo_data(void);
 void end_evo_transaction(unsigned char c);
 unsigned char init_evo_negotiation(void);
@@ -48,7 +48,7 @@ void send_bind(void);
 void send_nobind(void);
 void send_commonbind(void);
 void send_range(void);
-
+void send_evo_telemetry();
 //MACRO DEFINED TO AVOID FUNCTION CALL THAT COST A BIT IN PROC
 #define royal_trame_ok() OCR0==1
 #define set_royal_evo_rssi(VALUE)  evo_rssi=VALUE

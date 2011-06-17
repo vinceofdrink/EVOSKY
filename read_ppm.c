@@ -1,5 +1,5 @@
 /***********************************************************************************************************/
-// This Section handle is all about decoding an PPM input Stream 
+// This Section is all about decoding an PPM input Stream
 // By default we use interrupt 0 wich is related to Changing state of arduino PIN 3
 // Author : Vincent de Boysson vinceofdrink@gmail.com
 /***********************************************************************************************************/

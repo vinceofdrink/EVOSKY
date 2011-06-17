@@ -21,6 +21,8 @@
 #define TOOGLE_PORT(PORT_NAME,PORT_NUM)				PORT##PORT_NAME ^= (1 << PORT_NUM)
 #define READ_PORT(PORT_NAME,PORT_NUM)				PORT##PORT_NAME & (1 << PORT_NUM)
 
+#define READ_BIT(TARGET,BIT)						TARGET&(1<<BIT)
+
 #define SB_HIGH(TARGET,BIT)   TARGET|=_BV(BIT)      // SET BIT TO 1
 #define SB_LOW(TARGET,BIT)    TARGET&=~_BV(BIT)     // SET BIT TO 0
 #define sbi(TARGET,BIT)       TARGET|=_BV(BIT)      // SET BIT TO 1
@@ -30,7 +32,7 @@
 #ifndef TRUE
 #define TRUE	1
 #endif
-#ifndef TRUE
+#ifndef FALSE
 #define FALSE 	0
 #endif
 
