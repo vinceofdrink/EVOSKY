@@ -17,6 +17,7 @@ struct royal_tememetry_struct
 #if defined(ROYAL_EVO_C_)
 #else
 extern struct royal_tememetry_struct  royal_tele[14];
+
 #endif
 //define pour la télémétrie
 #define UNIT_V		1
@@ -39,16 +40,18 @@ extern struct royal_tememetry_struct  royal_tele[14];
 extern unsigned int evo_rssi;
 extern signed int MPX_voie[16];
 
+extern unsigned char evo_tele_ct;
 //FUNCTION DECLARATION
 void init_royal(unsigned char standard_boot);
 void decode_evo_data(void);
 void end_evo_transaction(unsigned char c);
-unsigned char init_evo_negotiation(void);
+unsigned char init_evo_negotiation(unsigned char);
 void send_bind(void);
 void send_nobind(void);
 void send_commonbind(void);
 void send_range(void);
 void send_evo_telemetry();
+void set_evo_rssi_alarm_level(unsigned char );
 //MACRO DEFINED TO AVOID FUNCTION CALL THAT COST A BIT IN PROC
 #define royal_trame_ok() OCR0==1
 #define set_royal_evo_rssi(VALUE)  evo_rssi=VALUE
@@ -58,4 +61,6 @@ void send_evo_telemetry();
 #define royal_evo_data_valid()  (data_counter==35 && data[0]==0x82)  // (194 ou 130); 0x80 dans le mode Â« Fast Response Â», 0x82 dans le mode normal, et 0x86 pour le rÃ©glage du Fail-Safe
 
 #define set_evo_telemetry(POSITION, UNITE,VALEUR, ALARME) royal_tele[POSITION].unite=UNITE; royal_tele[POSITION].valeur=VALEUR;royal_tele[POSITION].alarme=ALARME
+#define get_evo_telemetry_counter()	evo_tele_ct
+#define reset_trigger_for_next_data()  ooTIMER0_CT=0;ooTIMER0_OVERFLOW_ON;ooTIMER0_SCALE_8;OCR0=0
 #endif

@@ -92,8 +92,10 @@ void init_ppm(void)
 //Write a ppm frame
 void write_ppm(void)
 {
+	//We do not allow writing new PPM since we havent finish to write the previous PPM
     if(g_ppm_active)
       return;
+
     unsigned int previous_change=PPM_OFFSET;
     unsigned char i;
 

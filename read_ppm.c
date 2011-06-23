@@ -18,10 +18,12 @@
   #define CT_TO_US                        1.3824
 #endif
 
-#define PPM_PULSE			300   * CT_TO_US   							//in us PULSE
-#define PPM_NEUTRAL			1200  * CT_TO_US   							//in us NEUTRAL_POSTION = 1500-PULSE
-#define PPM_FULL_FRAME                  17000 * CT_TO_US   				//in us Length of a full PPM frame
-#define PPM_OFFSET                      1 * CT_TO_US       				//in us Wait after ppm_write for frame begin at least 1
+//DEFINE THE SKELETON OF A PPM DATAGRAM
+//
+#define PPM_PULSE						300   * CT_TO_US   							//in us PULSE
+#define PPM_NEUTRAL						1200  * CT_TO_US   							//in us NEUTRAL_POSTION = 1500-PULSE
+#define PPM_FULL_FRAME                  17000 * CT_TO_US   							//in us Length of a full PPM frame
+#define PPM_OFFSET                      1 * CT_TO_US       							//in us Wait after ppm_write for frame begin at least 1
 
 #define PPM_DELAY_FOR_NEW_FRAME         5000*CT_TO_US                	//Amount of time up wich we assume that the next incoming rising will be a new frame
 #define PPM_DELTA_BETWEEN_PPM           (PPM_PULSE+PPM_NEUTRAL)      	//delta between Rising edge to remove to get proper PPM Value

@@ -27,12 +27,12 @@
 
 void serial0_init(unsigned long baud)
 {
-	  unsigned char baudrateDiv;
+	  unsigned int baudrateDiv;
 	  cli();
-	  baudrateDiv = (unsigned char)((F_CPU+(baud*8L))/(baud*16L)-1);
-
-	  UBRR0H = baudrateDiv >> 8;
-	  UBRR0L = baudrateDiv;
+	  //baudrateDiv = (unsigned char)((F_CPU+(baud*8L))/(baud*16L)-1);
+	  baudrateDiv =F_CPU/16/baud-1;
+	  UBRR0H =(unsigned char) baudrateDiv >> 8;
+	  UBRR0L =(unsigned char) baudrateDiv;
 
 	  // ACTIVER LA RECEPTION ET L'EMISSION
 	  UCSR0B = (1 << RXEN0) | (1 << TXEN0);
@@ -45,6 +45,17 @@ void serial0_init(unsigned long baud)
 	  sei();
 
 }
+void serial_0_change_rate(unsigned long baud)
+{
+	unsigned int baudrateDiv;
+		  cli();
+		  //baudrateDiv = (unsigned char)((F_CPU+(baud*8L))/(baud*16L)-1);
+		  baudrateDiv =F_CPU/16/baud-1;
+		  UBRR0H =(unsigned char) baudrateDiv >> 8;
+		  UBRR0L =(unsigned char) baudrateDiv;
+		  sei();
+}
+
 /**
  * @todo Need to do something here
  */

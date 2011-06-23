@@ -15,9 +15,11 @@
 #define RESET_PORT(PORT_NAME)                       DDR##PORT_NAME =0x00;PORT##PORT_NAME=0XFF
 #define SET_PORT_AS_INPUT(PORT_NAME,PORT_NUM)       SB_LOW(DDR##PORT_NAME,PORT_NUM)
 #define SET_PORT_AS_OUTPUT(PORT_NAME,PORT_NUM)      SB_HIGH(DDR##PORT_NAME,PORT_NUM)
+#define READ_PORT_INPUT(PORT_NAME,PORT_NUM)			PIN##PORT_NAME & (1 << PORT_NUM)
 
 #define SET_PORT_HIGH(PORT_NAME,PORT_NUM)           SB_HIGH(PORT##PORT_NAME,PORT_NUM)
 #define SET_PORT_LOW(PORT_NAME,PORT_NUM)            SB_LOW(PORT##PORT_NAME,PORT_NUM)
+
 #define TOOGLE_PORT(PORT_NAME,PORT_NUM)				PORT##PORT_NAME ^= (1 << PORT_NUM)
 #define READ_PORT(PORT_NAME,PORT_NUM)				PORT##PORT_NAME & (1 << PORT_NUM)
 
@@ -226,6 +228,8 @@
 
     #define	ooTIMER2_FUNCTION		ISR(TIMER2_OVF_vect)
 #endif
+
+
 
 //###################################################################################
 //# ARDUINO 168 & 328 LAYOUT & MISC INFO

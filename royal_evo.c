@@ -9,22 +9,59 @@
 #include "serial.h"
 #include "royal_evo.h"
 #include "macro_atmega.h"
+#define  ROYAL_MAX_CHANEL_VALUE 1950		// if channel value of royal evo is >ROYAL_MAX_CHANEL_VALUE or <ROYAL_MAX_CHANEL_VALUE then value is presumed not valid
+
+#define MODE_NORMAL				0x82		//DEC 130
+#define MODE_FAST				0x80		//DEC 128
+#define MODE_FAIL_SAFE			0x86		//DEC 134
+
 signed int MPX_voie[16]; //Multiplex Data Chanel
 char nbvoies=0; 
 unsigned char emulation_mode=1;
 unsigned int evo_rssi=100;
-
+unsigned char evo_alarm=30;
 unsigned char evo_tele_ct=0;		//COUNTER OF TELEMETRY TO SEND FOR EACH FRAME
 
+unsigned char 	frame_counter=0;
+unsigned int 	per_cycle_error=0;
+unsigned char 	per_frame_error=0;
+/*
+au dÈpart, la communication est ‡ 19200 baud
+la radio envoie ´ v ª
+le module rÈpond en s identifiant (nom, n∞ de version)
+la radio envoie ´  ? ª pour obtenir les infos de frÈquence des modules 35 - 40 ou 72 MHz (pas de ´  ? ª pour le M-LINK)
+le module rÈpond par une chaine indiquant la gamme de frÈquence, le numero de canal et la frÈquence utilisÈe
+si on tourne la molette pour changer de frÈquence, la radio envoie ´ + ª ou ´ - ª
+et le module rÈpond par la fameuse chaine avec le numero de canal et la frÈquence
+le module envoie 3 octets dont la signification n est pas clair (canal libre d aprËs le scanner ?) suivie de 0x0D 0x0A (retour ‡ la ligne, retour chariot.
+la radio envoie ´ b ª pour dÈclencher la procÈdure de binding ou ´ a ª si tout est prÍt (binding au choix de l utilisateur au dÈmarrage)
+le dÈbit passe ‡ 115200 baud
+le module rÈpond 0x00 0xFF 0x00 0x00 0x00 dËs qu il est prÍt, ou 0x20 0xFF 0x00 0x00 0x00 si le binding est en cours
+la radio envoie les donnÈes au format suivant :
+  un octet 0x80 ou contenant le nombre de voies transmises
+  36 (ou 24) paires d octet contentant les temps de chaque voies sur 12 bits signÈs (infos ‡ prÈciser)
+le module MLINK (en fait le rÈcepteur dans le modËle rÈduit) renvoie 5 octets aprËs chaque paquets de donnÈes... Ces 5 octets contiennent les information de tÈlÈmÈtrie, binding, portÈe. (voir le site de Markus Stoeckli)
+avec un module MLINK, le premier octet vaut 0x80 dans le mode ´ Fast Response ª, 0x82 dans le mode normal, et 0x86 pour le rÈglage du Fail-Safe
 
+Attention 128=Mode Fast
+
+
+Valeurs radio	-110%	-100%	0%	+100%	+110%
+temps PPM		n.m			950µs	1500µs	2050µs	n.m
+data HFMS	-1937	-1761	0	1760	1936
+data O24RCP		950	1500	2050
+
+
+ */
 // The timer is activated after the intro sequence and is reset after each input event of UART0
 // If we overflow we do presume that we have a new frame ready from royal evo
 ISR(TIMER0_OVF_vect)
 {
 	ooTIMER0_STOP;
 	OCR0=1;
-	serial0_reset_ct(); // RESET THE BUFFER OF SERIAL_0 (WE NOT USING THE CIRCULAR BUFFER PROPERTY IN THIS APPLICATION
+	serial0_input_writect=0;
 }
+
 
 struct royal_tememetry_struct  royal_tele[14];
 void init_royal(unsigned char standard_boot)
@@ -32,13 +69,21 @@ void init_royal(unsigned char standard_boot)
 
   for(int i=0;i<12;i++)
    royal_tele[i].unite=0;
+  unsigned char tmp;
+  tmp=init_evo_negotiation(standard_boot);
 
-  end_evo_transaction(init_evo_negotiation());
+  SET_PORT_LOW(A,7);
 
+  _delay_ms(10);
+  end_evo_transaction(tmp);
+
+  SET_PORT_HIGH(A,7);
   //We use OCR0B Register as a semaphore that tell us if we have a new frame ready to be handle
+  serial0_reset_ct();
   OCR0=0;
-  ooTIMER0_SCALE_8;
   ooTIMER0_OVERFLOW_ON;
+  ooTIMER0_SCALE_8;
+
 
 
 
@@ -48,7 +93,11 @@ void init_royal(unsigned char standard_boot)
 void decode_evo_data(void)
 {
   unsigned char i;
-  unsigned char buffer_ct=0;
+  //unsigned char buffer_ct=0;
+
+  signed int revert_value;
+
+  per_frame_error=0;
   if (emulation_mode)
       {nbvoies=5+emulation_mode;} // 5 + nbre choisi par les cavaliers 
   else
@@ -59,56 +108,86 @@ void decode_evo_data(void)
   //et c'est parti pour la conversion des donnees
   nbvoies=8;
 
-  
+
   for (i=0;i<nbvoies;i++)
   {
-             
-      buffer_ct++;
+	  revert_value = MPX_voie[i];
+      /*
+	  buffer_ct++;
       MPX_voie[i]= (serial0_direct_buffer_read(buffer_ct));
       buffer_ct++;
       MPX_voie[i]+=((serial0_direct_buffer_read(buffer_ct))<<8);
-      
+		*/
+
+      MPX_voie[i]=((serial0_direct_buffer_read(2*i+2))<<8);
+      MPX_voie[i]+= (serial0_direct_buffer_read(2*i+1));
       if (MPX_voie[i]>=0x8000) {MPX_voie[i]=(signed int) (MPX_voie[i]-0x10000);}
 
+      //if (MPX_voie[i]>=0x8000) {MPX_voie[i]=(signed int) (MPX_voie[i]-0x10000);}
+
+      //CHECK IF VALUE ARE CORRECT (COULD HAVE SOME LINE TROUBLE)
+
+      if(MPX_voie[i]>ROYAL_MAX_CHANEL_VALUE || MPX_voie[i]<-ROYAL_MAX_CHANEL_VALUE )
+            {
+            	  MPX_voie[i]=revert_value;
+            	  per_cycle_error++;
+            	  per_frame_error++;
+            }
+      //END_DEBUG
+
+      //Translate
       set_ppm1_chanel(i,MPX_voie[i]-(MPX_voie[i]>>2)+(MPX_voie[i]>>7));
               
 			
   }
   //We restart the timer0 to trigger the next input from RoyalEvo
-  ooTIMER0_SCALE_8;
-  OCR0=0;
+  //We cycle on 100 Frame for error presence evaluation
+  frame_counter++;
+  if( frame_counter==100)
+  {
+	  frame_counter=0;
+	  per_cycle_error=0;
+  }
+
+
 }
 //*********************************************************************************************
 //* NEGOTIATION ROYAL EVO (AT STARTUP DIALOG TO FIND OUT WHAT KIND OF MODULE IS CONNECTED)
 //*********************************************************************************************
 
 
-unsigned char init_evo_negotiation(void)
+unsigned char init_evo_negotiation(unsigned char standard_boot)
 {
 
-	serial0_close();
+	//serial0_close();
 	serial0_init(19200);
   unsigned char c=0;
   unsigned int escape=0;
   do
 	{
-              // DIRTY SPEED EXIT FOR DEV ?
-              escape++;
-               if(escape==65500)
-                 return 'g';
-                
-             if(serial0_NewData())
-             {
-               
+	  // DIRTY  EXIT FOR IN CASE OF BROWN_OUT OR  WATCH_DOG RESET
+	  // I HAVE TO SETUP A TIMMING UPON WICH I PRESUME THAT NO NEGO IS NEEDED BY ROYAL EVO I START WITH A 500ms
+	  if(!standard_boot)
+	  {
+		  _delay_ms(1);
+		  escape++;
+		  if(escape>500)
+			  return 'g';
+	  }
+     if(serial0_NewData())
+     {
+
+
   		c =  serial0_readchar(); //on r√àcup√ãre la derni√ãre donn√àes re√Åue
   		if (c=='v') // on r√àpond ‚Ä° la radio qui veut savoir le type de module utilis√à
   		{
+
 			//LED_PORT |= (1<<LED_NUM);// led allum√àe
 			_delay_ms(12);
 			//LED_PORT &= ~(1<<LED_NUM);// led √àteinte
-			
+
 			if (emulation_mode)
-			{serial0_writestring("M-LINK   V3200");} // module M-LINK 2.4 GHz
+			{serial0_writestring("M-LINK   V3200");} // module M-LINK 2.4 GHz V3027 V3200
 			else
 			{
 			//uart_puts("40  HFMS2V268 Jul 11 200812:52:44"); //module 40 MHz
@@ -116,7 +195,7 @@ unsigned char init_evo_negotiation(void)
 			}
 			serial0_writechar(0x0D);
 			serial0_writechar(0x0A);
-		
+
 			//on remet le buffer au d√àbut (en principe, ‚Ä° ce moment, il n'y a qu'un octet)
 
 		}
@@ -150,8 +229,8 @@ unsigned char init_evo_negotiation(void)
 			//on remet le buffer au d√àbut (en principe, ‚Ä° ce moment, il n'y a qu'un octet)
 			
 		}
-           
-            }	
+
+       }
 
 	} while ((c!='b') & (c!='a') & (c!='r'));
 	
@@ -161,7 +240,9 @@ unsigned char init_evo_negotiation(void)
 	
 void end_evo_transaction(unsigned char c)
 {
-        unsigned int i;
+    unsigned int i;
+    //serial0_close();
+    serial_0_change_rate(115200);
 	if (c=='b') // demande de binding (uniquement module 2.4GHz)
 	{
                 
@@ -205,7 +286,7 @@ void end_evo_transaction(unsigned char c)
 	{
 		// pour patienter un peu que tout se mette en place !
 		//_delay_ms(200); // OK avec les modules 35 et 40 MHz
-		
+
 		_delay_ms(2); // OK pour le module 2.4 GHz
 		//for (i=0;i<3;i++)  // pas de binding
 		//{	
@@ -281,7 +362,7 @@ void send_evo_telemetry()
   if (royal_tele[evo_tele_ct].alarme) valeur++; // on ajoute 1 si on veut l'alarme
 
   //1er octet (alarme de port√àe)
-  if (evo_rssi<=30) serial0_writechar(0x40);
+  if (evo_rssi<=evo_alarm && evo_alarm!=0) serial0_writechar(0x40);
   else serial0_writechar(0x00);
   //2e octet
   serial0_writechar(0x01);// pas selon stoeckli
@@ -297,4 +378,12 @@ void send_evo_telemetry()
   if(royal_tele[ evo_tele_ct].unite==0)
    evo_tele_ct=0;
 }
+/**
+ * Set the level of RSSI alarm of royal Evo if set at 0 there will never be Royal Evo Alarm
+ */
+void set_evo_rssi_alarm_level(unsigned char evo_alarm_param)
+{
+	evo_alarm=evo_alarm_param;
+}
+
 
