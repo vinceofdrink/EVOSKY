@@ -33,6 +33,19 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+/******************************************
+ * FuseBit  an programming  			  *
+ ******************************************/
+/*
+
+avrdude	-pm128 -cusbasp -u
+			-Uflash:w:EVOSKY.hex:a
+			-Ulfuse:w:0xde:m
+			-Uhfuse:w:0xde:m
+			-Uefuse:w:0xff:m
+
+ */
 /******************************************
  * External HARDWARE INVOLVED             *
  ******************************************/
