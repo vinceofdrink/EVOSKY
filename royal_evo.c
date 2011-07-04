@@ -15,12 +15,15 @@
 #define MODE_FAST				0x80		//DEC 128
 #define MODE_FAIL_SAFE			0x86		//DEC 134
 
+
+
 signed int MPX_voie[16]; //Multiplex Data Chanel
 char nbvoies=0; 
 unsigned char emulation_mode=1;
 unsigned int evo_rssi=100;
 unsigned char evo_alarm=30;
 unsigned char evo_tele_ct=0;		//COUNTER OF TELEMETRY TO SEND FOR EACH FRAME
+
 
 unsigned char 	frame_counter=0;
 unsigned int 	per_cycle_error=0;
@@ -54,7 +57,7 @@ data O24RCP		950	1500	2050
 
  */
 // The timer is activated after the intro sequence and is reset after each input event of UART0
-// If we overflow we do presume that we have a new frame ready from royal evo
+// If we overflow we do presume that we have a new frame ready from royal evo or nothing and we will trigger again the timer (see main)
 ISR(TIMER0_OVF_vect)
 {
 	ooTIMER0_STOP;
@@ -162,6 +165,7 @@ unsigned char init_evo_negotiation(unsigned char standard_boot)
 	//serial0_close();
 	serial0_init(19200);
   unsigned char c=0;
+
   unsigned int escape=0;
   do
 	{
@@ -186,13 +190,13 @@ unsigned char init_evo_negotiation(unsigned char standard_boot)
 			_delay_ms(12);
 			//LED_PORT &= ~(1<<LED_NUM);// led Èteinte
 
-			if (emulation_mode)
-			{serial0_writestring("M-LINK   V3200");} // module M-LINK 2.4 GHz V3027 V3200
-			else
-			{
+
+			serial0_writestring("M-LINK   V3200"); // module M-LINK 2.4 GHz V3027 V3200
+
 			//uart_puts("40  HFMS2V268 Jul 11 200812:52:44"); //module 40 MHz
-				serial0_writestring("35ABHFMS2V268 Jul 11 200812:52:00"); //module 35 MHz
-			}
+			//serial0_writestring("35ABHFMS2V268 Jul 11 200812:52:00"); //module 35 MHz
+			//	evo_start_mode=1;
+
 			serial0_writechar(0x0D);
 			serial0_writechar(0x0A);
 
@@ -205,7 +209,9 @@ unsigned char init_evo_negotiation(unsigned char standard_boot)
 		{
 
 			_delay_ms(12);
-			serial0_writestring("35AB2G402400"); // module 35 MHz
+
+			serial0_writestring("35AB2G402400"); // module 35 MHz  35AB2G402400
+
 			//uart_puts("40  051406750"); // module 40 MHz
 			//avec un module MLINK, la radio ne demande pas la frÈquence
 			serial0_writechar(0x01); // ??
@@ -329,7 +335,7 @@ void send_range(void) //inutile pour un module 35 ou 40 MHz
 // #1+2#
 void send_telemetry(unsigned char position, unsigned char unite,signed int valeur, unsigned char alarme)
 {
-  
+
         //if(position!=2) 
          // return;
 	valeur=valeur*2; // on multiplie par 20 (format Multiplex)
@@ -353,6 +359,7 @@ void send_telemetry(unsigned char position, unsigned char unite,signed int valeu
 
 void send_evo_telemetry()
 {
+
 
   if(royal_tele[ evo_tele_ct].unite==0)
     return;
@@ -383,6 +390,8 @@ void send_evo_telemetry()
  */
 void set_evo_rssi_alarm_level(unsigned char evo_alarm_param)
 {
+	if(evo_alarm_param==0)
+		evo_alarm_param=100;
 	evo_alarm=evo_alarm_param;
 }
 

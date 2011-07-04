@@ -132,7 +132,7 @@ void serial1_init(unsigned long baud)
  */
 void serial1_close(void)
 {
-
+	 //SB_LOW(UCSR1B,RXCIE1);
 }
 /*
 

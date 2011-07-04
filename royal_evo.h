@@ -52,6 +52,7 @@ void send_commonbind(void);
 void send_range(void);
 void send_evo_telemetry();
 void set_evo_rssi_alarm_level(unsigned char );
+
 //MACRO DEFINED TO AVOID FUNCTION CALL THAT COST A BIT IN PROC
 #define royal_trame_ok() OCR0==1
 #define set_royal_evo_rssi(VALUE)  evo_rssi=VALUE

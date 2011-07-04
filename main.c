@@ -1,9 +1,18 @@
 /*
- * PROJECT INTEND TO WORK ON ATMEGA128 WITH F_CPU AT 11059200 (Crystal AT 11.0592MHZ)
+ * PROJECT INTEND TO WORK ON ATMEGA128 WITH F_CPU AT 11059200 (Crystal AT 11.0592MHZ) AND ROYAL EVO 7,9,12 FIRMWARE 1.41
+ * I DID NOT TEST FOR REAL ROYAL 7 AND ROYAL 12
  *
- * I DID USE ECLIPSE (BASIC VERSION WITH C) AND A VERY CONVENIANT PLUGINS "AVR Eclipse Plugin"
- * YOU SHOULD BE ABLE TO COMPILE WITHOUT ECLIPSE BY ENTERING "Release" FOLDER AND RUN "make all" IF YOU HAVE INSTALLED AVR env
- * THEN YOU SHOULD BURN THE RESULTING "multiplex.hex" FILE WITH AVRDUDE
+ * BASIC FUNCTION ARE
+ * DECODE ROYAL_EVO DATA AND GENERATE ACCORDINGLY A  PPM OUTPUT FOR FRSKY MODULE
+ * DECODE FRSKY TELEMETRY DATA AND TRANSLATE THEM TO ROYAL EVO TELEMERTRY DISPLAY
+ * DECODE A PPM INPUT FROM A FPV HEAD TRACKER AND ASSIGN THEN TO ANY OF THE TRANSMITED CHANEL
+ *
+ * THE TELEMETRY SHOULD BE EASYLY MODIFY TO MEET YOUR NEED
+ *
+ * I USE ECLIPSE (BASIC VERSION WITH C) AND A VERY CONVENIANT PLUGINS "AVR Eclipse Plugin" TO EDIT THIS PROJECT
+ * YOU SHOULD BE ABLE TO COMPILE WITHOUT ECLIPSE BY ENTERING "Release" FOLDER AND RUN "make all" IF YOU HAVE INSTALLED AVR ENVIRONEMENT
+ * THEN YOU SHOULD BURN THE RESULTING "multiplex.hex" FILE WITH AVRDUDE OR USING THE AVRUBD UPLOADER IF YOU HAVE
+ * CHOOSE FIRST TO BURN ATMEGA128 WITH THE AVR°UNIVERSAL_BOOT LOADER PROVIDE WITH THE EVOSKY PROJECT
  * ex with USBASP Programmer "avrdude -pm128 -cusbasp -Uflash:w:multiplex.hex:a"
  * You should also programe The fuse for the first use with the following param
  * ex with USBASP Programmer "avrdude "
@@ -55,36 +64,63 @@
 //I also come straight from Arduino Programming so any advice on how to do this better is welcome
 #include "macro_atmega.h"	//Macro of my own because i never remember the semantic of TIMER etc of AVR
 #include "write_ppm.h"      //Provide all the function to write a PPM frame in asynchrone mode (using interrupt)
+#include "read_ppm.h"      //Provide all the function to listen to a PPM stream in asynchrone mode (using interrupt)
 #include "serial.h"			//Provide basic access to UART0 and UART1 of Atmega 128
 #include "royal_evo.h"		//Provide all the function to handle communication with Royal Evo Radio
 #include "FrSky.h"			//Provide all the function to handle communicatio with FRSKY TX
 
 void telemetry_with_debug(void);
+
+//SOME MACRO TO HANDLE THE STATE OF OUR BUTTON
+unsigned char evo_bt1=0;
+unsigned char evo_bt2=0;
+unsigned char evo_bt1_timestamp=0;
+unsigned char evo_bt2_timestamp=0;
+
+//#define checkbutton()
+// Check for single or double click action.
+#define button_doubleclick_timming 	20 //1 equal around 20 ms
+
+//Monitor click action
+#define checkbutton1()	if((READ_PORT_INPUT(A,1)==0) && evo_bt1==0){evo_bt1=1;evo_bt1_timestamp=0;}else{if(!(READ_PORT_INPUT(A,1)==0) && evo_bt1==1){evo_bt1=2;}else{if((READ_PORT_INPUT(A,1)==0) && evo_bt1==2){evo_bt1=3;}}} if(evo_bt1!=0)evo_bt1_timestamp++;
+#define checkbutton2()	if((READ_PORT_INPUT(A,2)==0) && evo_bt2==0){evo_bt2=1;evo_bt2_timestamp=0}else{if(!(READ_PORT_INPUT(A,2)==0) && evo_bt2==1){evo_bt2=2;}else{if((READ_PORT_INPUT(A,2)==0) && evo_bt2==2){evo_bt2=3;}}} if(evo_bt2!=0)evo_bt2_timestamp++;
+
+#define evosky_button1_pressed()	(evo_bt1!=0 && evo_bt1_timestamp>button_doubleclick_timming)
+#define evosky_button2_pressed()	(evo_bt2!=0 && evo_bt2_timestamp>button_doubleclick_timming)
+#define evosky_button_single_click() ()
 /******************************************
- * OUTPUT USED ON ATMEGA128               *
+ * PIN USED ON ATMEGA128               *
  ******************************************/
 
 // PB5 PPM OUTPUT 	-> CONNECT TO FRSKY INPUT PPM //  1K Ohm Resistor is problably welcome between AVR-FRSKY PPM CNX
 // PE1 PDO/TXD0   	-> CONNECT TO RX OF ROYAL EVO USING A VOLTAGE DIVISOR LIKE 15K/10K to have a 3.3V TTL FROM THE AVR 5V TTL
 // PE0 PDI/RXD0   	-> CONNECT TO TX OF ROYAL EVO USING A 10K RESITOR TO PROTECT HIGH CURRENT TO FLOW THERE
+// PE7 PPM INPUT 	-> CONNECT TO YOUR FPV HEAD TRACKER (IN DEVELOPEMENT)
 
 // PD3 INT3/TXD1(1) -> CONNECT TO THE TTL INPUT OF A RS232 TO TTL CONVERTER LIKE MAX232 TO THE INPUT PIN OF FRSKY RS232
 // PD2 INT2/RXD1(1) -> CONNECT TO THE TTL OUTPUT OF RS232 TO TTL CONVERTER LIKE MAX232 TO THE OUPUT PIN OF FRSKY RS232
 // YOU CAN USE ONLY THE FRSKY BASIC CONVERTER AND JUST WIRE THE RX TO HAVE ONLY THE READING OF TELEMETRY
 
 // PA0 ->CONNECT TO THE VCC INPUT OF MAX232 TTL CONVERT FOR FRSKY (OPTIONAL YOU CAN PLUG DIRECTLY MAX232 VCC TO 5V)
-// PA1 ->CONNECT TO A BUTTON THAT I PLACE ON THE OUTSIDE OF ROYAL EVO  CONNECT TO GND AND PA1 THE BUTTON WILL BE USE TO INTERACT WITH TELEMETRY OPTION AND CHANGE MODE AT BOOT TIME (PULL UP DONE WITH AVR ON THE PIN)
+// PA1 ->CONNECT TO A BUTTON PLACED ON THE OUTSIDE OF ROYAL EVO  CONNECT TO GND AND PA1 THE BUTTON WILL BE USE TO INTERACT WITH TELEMETRY OPTION AND CHANGE MODE AT BOOT TIME (PULL UP DONE WITH AVR ON THE PIN)
+// PA2 ->CONNECT TO A BUTTON PLACED ON THE OUTSIDE OF ROYAL EVO  CONNECT TO GND AND PA2 THE BUTTON WILL ON START_USED TO DETECT IF WE WANT ENTER BOOTLOADER MODE TO UPDATE EVOSKY FIRMWARE
 
-// PA4 BOOTLOADER MODE SET THE PIN
+// PA4 BOOTLOADER MODE SET THE PIN TO THE GROUND WHEN YOU WANT TO GO IN BOOTLOADER MODE IN ORDER TO UPDATE THE FIRMWARE.
+// BOOATLOADER WILL USE THE SAME UART AS FRSKY (PD3 TX ,PD2 RX) THAT THE REASON WHY I USE A PIN TO ACTIVATE
 
-// PA5 & PA6 USED ACTUALY FOR DEBUG WITH LOGICAL ANALYSER SHOULD BE REMOVE WHEN CODE WILL REACH RELEASE STATUS
+// THIS PIN ARE OPTIONAL AND USED IN MODE "MODE_USB_ROYAL"
+// PA5 SHOULD BE CONNECTED TO RX PIN OF ROYAL EVO PROGRAMING PORT
+// PA6 SHOULD BE CONNECTED TO TX PIN OF ROYAL EVO PROGRAMING PORT
+
+// BUT PA5 A
 // PA7 ON BOARD LED -> USE FOR THE STATUT LED ON BOARD AND DEBUG PURPOSE(I USE A 1K Ohm Resistor)
 
 // RESERVED FOR FUTURE USE TO DRIVE AN SD CARD IN FAT FORMAT (WITH AN EXTERNAL FAT LIBRARY)
+// WARNING DONT GET FOOLED WITH MISO AND MOSI LABEL USED FOR PROGRAMMING THE ATMEGA128 AS THERE ARE CONNECT TO PE0 PE1
 // PB3	MISO (SPI Bus Master Input/Slave Output)
 // PB2	MOSI (SPI Bus Master Output/Slave Input)
-// PB1 SCK (SPI Bus Serial Clock)
-// PB0 SS (SPI Slave Select input)
+// PB1 	SCK (SPI Bus Serial Clock)
+// PB0 	SS (SPI Slave Select input)
 
 
 /******************************************
@@ -92,20 +128,55 @@ void telemetry_with_debug(void);
  ******************************************/
 // TIMER0 Is used to monitor Serial Input activity from royal evo, if we overflow we presume that Royal evo as send a entire frame
 // TIMER1 Is used to forge the PPM signal using the Toogle property on the PB5 PORT
-// TIMER0 Not used right now could be use to generate sound if don't find what we need with FRSKY and ROYAL EVO alarm.
-// TIMER3 Will be used to listen and calculate value from an input PPM stream (For FPV HEAD TRACKER USAGE) that will be mixed with PPM output
+// TIMER2 Not used right now could be use to generate sound if we don't find what we need with FRSKY and ROYAL EVO alarm.
+// TIMER3 Will be used to listen and calculate value from an input PPM stream on PE7 using external event timestamp ICR3 (For FPV HEAD TRACKER USAGE) that will be mixed with PPM output
 
+/* MEMO  EXTERNAL INTERRUPT
+ *
+ //USED
+ INTO PD0
+ INT1 PD1
+ INT2 PD2
+ INT3 PD3
+ INT7 PE7
+
+ //FREE
+ INT6 PE6
+ INT5 PE5
+ INT4 PE4
+
+ */
 /******************************************
- * USER DEFINED CONSTANT                  *
+ * USER DEFINED OPTION                    *
  ******************************************/
-#define OPTION_WATCHDOG	0  //SET TO 1 IF WE WANT TO USE WATCHDOG TO RESET IF THE PROGRAM IS PRESUMED HANG
-#define OPTION_BROWN_OUT 0 //SET TO 1 IF WE WANT TO CHECK BROWN_OUT OPTION TO DETECT VOLTAGE GARBAGE
+#define OPTION_WATCHDOG		0  		//SET TO 1 IF WE WANT TO USE WATCHDOG TO RESET IF THE PROGRAM IS PRESUMED HANG
+#define OPTION_BROWN_OUT 	0 		//SET TO 1 IF WE WANT TO CHECK BROWN_OUT OPTION TO DETECT VOLTAGE GARBAGE
+#define RSSI_EVO_ALARM		30		//Set the level below wich Royal evo will trigger RSSI Low Level Alarm if 0 no alarm at all (this is a bit redundant with FRSKY alarm dont know what to do with it)
 
-#define MODE_FLY  		1	//NORMAL MODE
-#define MODE_USB_ROYAL	2   //NOT AVAILABLE RIGHT NOW SHOULD BIND A USB-TO-TTL WITH ROYAL EVO PIN FOR UPGRADE OR BACKUP OF ROYAL DATA
-#define MODE_USB_FRSKY	3   //NOT AVAILABLE RIGHT NOW SHOULD BIND THE SAME USB-TO-TTL WITH FRSKY MODULE FOR UPGRADE FIRMWARE FOR EXAMPLE
-#define MODE_DEBUG		99	//SAME AS MODE FLY BUT TELEMETRY IS USED TO DISPLAY DEBUG PARAMETER
-#define RSSI_EVO_ALARM	30	//Set the level below wich Royal evo will trigger RSSI Low Level Alarm if 0 no alarm at all (this is a bit redundant with FRSKY alarm dont know what to do with it)
+// ALL THE FPV_CHANEL MIXING IS DESCRIBE BUT NOT DEVELOPED RIGHT NOW
+#define FPV_PPM_TYPE		1	// 1 for positive PPM 0 for negative PPM
+#define FPV_CHANEL_1_IN		1	//WICH CHANEL WE SHOULD READ FROM HEAD TRACKER PPM FOR OUR CHANEL1
+#define FPV_CHANEL_2_IN		2	//WICH CHANEL WE SHOULD READ FROM HEAD TRACKER PPM FOR OUR CHANEL2
+#define FPV_CHANEL_1_OUT	7	//ON WICH FRSKY OUTPUT WE WISH TO OUTPUT OUR FPV_CHANEL1 (IN MIX MODE ONLY CHANEL_1 WILL BE USED
+#define FPV_CHANEL_2_OUT	8	//ON WICH FRSKY OUTPUT WE WISH TO OUTPUT OUR FPV_CHANEL2
+
+
+// THE PROCESS OF CHANNEL MIXING IS TO DIVIDE BY 2 THE RESOLUTION AND ASSIGN CHANEL 1 INTO (-100% -> 0%) AND CHANEL 2 (0%->+100%)
+// WE CAN CONFIGURE A MIDDLE MARGIN TO AVOID CONFUSION BETWEEN C1 AND C2 SO CHANNEL 1 AND CHANNEL 2 WILL NEVER BE SET INTO A DEAD BAND DEFINED BELOW IN uS
+// THE FPV_CHANEL_MIXING_MARGIN IS AT THE CENTER OF THE SIGNAL
+// OF COURSE CHANEL MIXING NEED AN ARDUINO  CONNECTED TO THE FRSKY RX MODULE TO THE FPV_CHANEL_1_OUT CHANEL PIN TO SPLIT AGAIN THE CHANNEL AND SHOULD SHARE THE SAME MARGIN
+#define FPV_CHANEL_MIXING_MARGIN	50		//in uS   ( 1sec /1000 = Milliseconde /1000 = uS)
+
+/*****************************************
+ * THE DIFFERENT OPERATING MODE OF THE EVOSKY (THERE ARE SELECTED AT BOOT TIME BY PRESSING THE EXTERNAL BUTTON) DO NOT EDIT CODE VALUE THERE NO NEED FOR IT
+ *****************************************/
+#define MODE_FLY  			0	//NORMAL MODE
+#define MODE_FLY_FPV		1	//NORMAL MODE + READING OF INPUT PIN PE7 FOR A PPM STREAM FROM FPV HEAD TRACKER
+#define MODE_FLY_FPV_MIX	2	//NORMAL MODE + READING OF INPUT PIN PE7 FOR A PPM STREAM FROM FPV HEAD TRACKER BUT OUTPUT WILL BE MIXED ON FPV_CHANEL_1_OUT NEED DECODER ON THE OTHER SIDE
+
+#define MODE_USB_ROYAL		3   //NOT AVAILABLE RIGHT NOW SHOULD BIND A USB-TO-TTL WITH ROYAL EVO PIN FOR UPGRADE OR BACKUP OF ROYAL DATA
+#define MODE_USB_FRSKY		4   //NOT AVAILABLE RIGHT NOW SHOULD BIND THE SAME USB-TO-TTL WITH FRSKY MODULE FOR UPGRADE FIRMWARE FOR EXAMPLE
+#define MODE_DEBUG			99	//SAME AS MODE FLY BUT TELEMETRY IS USED TO DISPLAY DEBUG PARAMETER
 
 /******************************************
  * Main Program                           *
@@ -114,21 +185,40 @@ void telemetry_with_debug(void);
 //i have try to expose all the high level event of the process here and all the telemetry action
 int main(void)
 {
-	unsigned char mode;	//STORE WICH MODE WE RUN THE PROGRAM
-	unsigned char standard_boot=TRUE; //TRUE for normal meaning (doing nego with royal and then listening to royal frame) FALSE (waiting about 500ms for nego and then go directly to listining evo frame)
+	unsigned char mode;					//STORE WICH MODE WE RUN THE EVOSKY
+	unsigned char standard_boot=TRUE; 	//TRUE for normal meaning (doing nego with royal and then listening to royal frame) FALSE (waiting about 500ms for nego and then go directly to listining evo frame)
 
-	SET_PORT_AS_OUTPUT(A,7); //DEFINE LED PORT AS OUTPUT
-	SET_PORT_AS_OUTPUT(A,0); //DRIVE VCC OF MAX232
-	SET_PORT_HIGH(A,0); 	 //WE LIGHT UP MAX232 VCC
 
+
+
+
+
+
+	SET_PORT_AS_OUTPUT(A,7); 			//DEFINE LED PORT AS OUTPUT
+
+	SET_PORT_LOW(A,0); 	 				//WE LIGHT UP MAX232 VCC LATER ON
+	SET_PORT_AS_OUTPUT(A,0); 			//DRIVE VCC OF MAX232
+
+
+	//BUTTON INTERACTION
+	SET_PORT_AS_INPUT(A,1);
+	SET_PORT_HIGH(A,1);	//PULL UP
+
+	SET_PORT_AS_INPUT(A,2);
+	SET_PORT_HIGH(A,2); //PULL UP
+
+
+
+
+	//DEBUG PORT FOR LOGIC ANALYSER
 	SET_PORT_AS_OUTPUT(A,6);
 	SET_PORT_AS_OUTPUT(A,5);
 	SET_PORT_HIGH(A,5);
 	SET_PORT_HIGH(A,6);
 
-	//Tentative d'unfucking du port d'entre RX pour la royal evo !!
-	SET_PORT_AS_INPUT(E,0);
-	SET_PORT_LOW(E,0);
+	//THIS IS TEST WILL NOT STAY
+	//SET_PORT_AS_INPUT(E,0);
+	//SET_PORT_LOW(E,0);
 
 
 	SET_PORT_HIGH(A,7);		//LIGHT THE LED TO SAY HELLO :)
@@ -147,8 +237,8 @@ int main(void)
 		// So if standard_boot is set a FALSE will try a few nego and if i dont get any reliable reply from evo i will go directly into reading channel position from evo.
 		// I try to take care of those scenario to allow quick control recovery in case it append during a fly.
 
-		standard_boot=FALSE;
-		SB_LOW(MCUCSR,WDRF);	/We reset the WATCHDOG FLAG
+		standard_boot=FALSE;	// We wait only 500ms for royal evo nego and then go to listining for frame position (the royal evo as probably not been reset)
+		SB_LOW(MCUCSR,WDRF);	// We reset the WATCHDOG FLAG
 	}
 	#endif
 
@@ -178,20 +268,23 @@ int main(void)
 	//RIGHT NOW I ASSIGN BY DEFAULT THE MODE_FLY WICH IS THE NORMAL MODE
 	//I NEED TO FIGURE OUT A WAY TO CHOOSE OTHER MODE AT BOOT TIME
 	//the default mode would alway be MODE_FLY (Read Royal and Frsky And Writing PPM and tememetry)
-	mode=MODE_FLY;
+	if(SET_PORT_AS_OUTPUT(A,0))
 
 	//WE SUPPOSE TROUBLE ON BOOT  (WatchDog or Brown-out) FORCE the mode to MODE_FLY
 	//AND TRY TO BEGIN AS FAST AS POSSIBLE THE PPM EMISSION
 	if(!standard_boot)
 		mode=MODE_FLY;
 
-	mode=MODE_DEBUG;
+	mode=MODE_FLY;
 
 	switch(mode)
 	{
 
 		case MODE_FLY:
+		case MODE_FLY_FPV:
+		case MODE_FLY_FPV_MIX:
 		case MODE_DEBUG:
+			SET_PORT_HIGH(A,0); 	 	//WE LIGHT UP MAX232 VCC
 			Init_FrSky();				//Initialise Cnx with Frsky Module
 			set_evo_rssi_alarm_level(RSSI_EVO_ALARM);	//Royal Evo RSSI Alarm Level See define for more info
 			init_royal(standard_boot);	//Initialise Cnx with Royal Evo (standard boot means we will wait for real negotiation with royal evo otherwise if we cannot akwnoledge Royal evo we skip try several nego and then start directly to listening to channel position stream
@@ -201,13 +294,15 @@ int main(void)
 			#if OPTION_WATCHDOG==1
 				wdt_enable(WDTO_120MS);
 			#endif
+			if (mode==MODE_FLY_FPV || mode==MODE_FLY_FPV_MIX)
+				init_read_ppm(FPV_PPM_TYPE);
 			while(TRUE)
 			{
 
 				if(royal_trame_ok())	//Test if we have a valid data from EVO
 				{
 					//We have at least 20 incoming bytes to decode if less we will wait for the next event
-					if(serial0_input_writect>20)
+					if(serial0_input_writect==0)
 
 					{
 
@@ -218,6 +313,8 @@ int main(void)
 					 TOOGLE_PORT(A,6);
 					 write_ppm();		//Write a PPM Signal (Asynchrone process)
 
+
+
 					//We update the watchdog to prevent a reset
 					//as we have declare a set 120MS Max the watch dog would trigger after  4/5 PPM Frame not being send after and reset the atmega128 (we handle such a restart)
 					#if OPTION_WATCHDOG==1
@@ -225,7 +322,9 @@ int main(void)
 					#endif
 
 					 Read_FrSky();//Read and decode Data receive from FRSKY
-					 if(mode==MODE_DEBUG) //In mode debug we switch for a debug display using telemetry output
+
+					 //In mode debug we switch for a debug display using telemetry output
+					 if(evosky_button1_pressed() || evosky_button2_pressed())
 						telemetry_with_debug();
 					 else
 					 {
@@ -249,9 +348,9 @@ int main(void)
 						 //DO NOTHING RIGHT NOW BUT I WILL DEFINE A PROTOCOL TO REMOTLY FROM RX ASSIGN DATA TO TELEMETRY CHANNEL
 					 }
 					  */
-
-					 //set_royal_evo_rssi(get_FrSky_rssi_up_link());	//ASSIGN rssi that will allow alarm triggering for each telemetry frame even if there not related to RSSI
-
+					#if RSSI_EVO_ALARM!=0
+						 set_royal_evo_rssi(get_FrSky_rssi_up_link());	//ASSIGN rssi that will allow alarm triggering for each telemetry frame even if there not related to RSSI
+					#endif
 
 					 /**
 					  * You can freely implement your own stuff here
@@ -283,9 +382,9 @@ int main(void)
 					 // while (!is_ppm_active())Read_FrSky();
 
 
-					 TOOGLE_PORT(A,6);
+
 					 send_evo_telemetry();	//SEND THE TELEMETRY TO ROYAL EVO
-					 TOOGLE_PORT(A,6);
+
 					}
 					//
 						// We reset the serial buffer (we do not use in this project the circular buffer)
@@ -298,11 +397,69 @@ int main(void)
 			}
 		break;
 
+		// MODE_USB_ROYAL AND MODE_USB_FRSKY
+		// SUPPOSE THAT YOU HAVE WIRE A USB TTL CONNECTOR TO THE PD2 and PD3 PIN AND IDEALY THE USB CONNECTOR POP OUT OF THE ROYAL EVO BOX
+		// THAT THIS USB TTL HAVE HIGH RESISTANCE ON THOSE PIN WHEN NOT POWERED
+		// THAT THIS USB TTL PROVIDE A VCC TO 5V THAT WILL ADVERTISE EVOSKY THAT WE HAVE AN COMPUTER CONNECT TO USB
+		// THAT THE MAX 232 AS HIGH RESISTANCE ON IS TX an RX TTL PIN
+		// IF ALL THOSE CONDITION ARE OK WE WILL HAVE THE POSIBILITY FROM USB PORT TO
+		// BURN NEW FIRMWARE FOR EVOSKY WITHOUT THE NEED OF PROGRAM
+		// UPDATE FRSKY FIRMWARE WITH FRSKY PC SOFTWARE
+		// UPDATE ROYAL AND MANAGE ROYAL EVO FIRMWARE AND SETTING WITH MULTIPLEX SOFTWARE
+		// IN FUTURE WE COULD ALSO OUTPUT STICK POSITION FOR SIMULATOR
 		case MODE_USB_ROYAL:
+			//WE WILL BIT BANG THE STATE OF PD2 TO ROYAL SERIAL INPUT PIN
+			//WE WILL BIT BANG THE STATE OF ROYAL SERIAL OUTPUT PIN TO PD3
+			//AS WE SHARE THE SAME PORT THAT IS USED BY FRSKY THE MAX232 SHOULD NOT BE POWERED  (SEE PA0 PIN) SO NO ARETFACT WITH FRSKY MODULE
+			//THIS IS A BIT A BRUTAL METHOD BUT IT SHOULD WORK WE HAVE NOTHING ELSE TO DO AND NO INTERRUPTION IN BACKGROUND
+			//WAIT TO WIRE A TTL TO USB CONVERTER TO EVOSKY BOARD TO TEST
+
+			SET_PORT_AS_OUTPUT(D,2);
+			SET_PORT_LOW(D,2);
+
+			SET_PORT_AS_INPUT(D,3);
+			SET_PORT_LOW(D,3);
+
+			SET_PORT_AS_INPUT(A,5);
+			SET_PORT_LOW(A,5);
+
+			SET_PORT_AS_OUTPUT(A,6);
+			SET_PORT_LOW(A,6);
+
+			while(TRUE)
+			{
+				//COPY STATE OF USB OUTPUT TO ROYAL INPUT
+				if(READ_PORT_INPUT(D,3))
+					SET_PORT_HIGH(A,6);
+				else
+					SET_PORT_LOW(A,6);
+
+				//COPY STATE OF ROYAL OUTPUT TO USB INPUT
+				if(READ_PORT_INPUT(A,5))
+					SET_PORT_HIGH(D,2);
+				else
+					SET_PORT_LOW(D,2);
+			}
+
+
+
+
 		break;
 
 		case MODE_USB_FRSKY:
+			//PRETTY SIMPLE  WE JUST NEED TO KEEP PD2 & PD3 TO INPUT MODE WITH NO PULL UP SO THERE WILL NOT INTERACT
+			//WITH COMMUNICATION BETWEEN THE USB TTL AND THE FRSKY MODULE ON PD3 AND PD2
+			//WE JUST NEED TO LIGHT UP THE MAX232
+			SET_PORT_AS_INPUT(D,2);
+			SET_PORT_LOW(D,2);
 
+			SET_PORT_AS_INPUT(D,3);
+			SET_PORT_LOW(D,3);
+			SET_PORT_HIGH(A,0); 	 			//WE LIGHT UP MAX232 VCC
+			while(TRUE)
+			{
+				//nop;
+			}
 		break;
 
 	}
@@ -318,6 +475,10 @@ void telemetry_with_debug(void)
 {
 
 		unsigned char debug_type=2;
+		if(evosky_button1_pressed())
+			debug_type=0;
+		else
+			debug_type=2;
 		switch (debug_type)
 		{
 			//Show the 9 computed chanel of royal evo

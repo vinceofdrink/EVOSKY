@@ -1,3 +1,5 @@
-extern signed int read_ppm[12];
-extern unsigned char  g_read_ppm_Timer_overflow;
-#define read_ppm_chanel(CHANEL)  read_ppm[CHANEL]
+extern signed int g_read_ppm[];
+#ifndef READ_PPMC
+#define read_ppm_chanel(CHANEL)  	g_read_ppm[CHANEL]
+#endif
+void init_read_ppm(unsigned char ); // Argument is 0 for PPM negative and 1 for positive

@@ -45,7 +45,7 @@
 
 //GLOBAL VARIABLE
 int g_chanel1[MAX_CHANEL_NUMBER];                           // channels encoded from -500 to 500 (middle point 0) (its litteraly the offset around middle point in us)
-unsigned int g_ppm1_timing[(MAX_CHANEL_NUMBER*2)+2];       // Store all the toogle point to draw a full ppm frame
+unsigned int  g_ppm1_timing[(MAX_CHANEL_NUMBER*2)+2];       // Store all the toogle point to draw a full ppm frame
 unsigned char g_ppm1_ct      = 0;                          // compare point index for currently active
 unsigned char g_ppm_active   =0;
 

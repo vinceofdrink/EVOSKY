@@ -10,7 +10,7 @@
 extern signed int      g_chanel1[MAX_CHANEL_NUMBER];
 extern unsigned char 	g_ppm_active;
 //extern unsigned char  g_read_ppm_Timer_overflow;
-#define read_ppm_chanel(CHANEL)  read_ppm[CHANEL]
+//#define read_ppm_chanel(CHANEL)  read_ppm[CHANEL]
 
 #define set_ppm1_chanel(CHANEL,VALUE)	g_chanel1[CHANEL]=VALUE
 #define is_ppm_active() g_ppm_active
