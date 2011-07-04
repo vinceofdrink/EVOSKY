@@ -380,9 +380,9 @@ int main(void)
 
 						 set_evo_telemetry(1,UNIT_LQI,	get_FrSky_rssi_down_link()			,0);
 
-											 //set_evo_telemetry(ct++,UNIT_V,	get_FrSky_sensor1()*3.3*10*4/256		,0);  //FILL THE VALUEs
+						set_evo_telemetry(2,UNIT_V,	get_FrSky_sensor1()*3.3*10*4/256		,0);
 
-						 set_evo_telemetry(2,UNIT_LQI,	get_royal_chanel(0)					,0); //DEBUG Stuff
+						set_evo_telemetry(2,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
 					 }
 
 
