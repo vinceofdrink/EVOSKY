@@ -52,7 +52,7 @@ avrdude	-pm128 -cusbasp -u
 // A TTL TO RS232 CONVERT (BASED ON MAX232) See on ebay
 // A UBEC FROM HobbyKing for the VCC of Atmega (This is oversized choose whatever electonic that output a clean 5V like a dropout regulator) http://www.hobbyking.com/hobbyking/store/uh_viewItem.asp?idProduct=15212
 // A Atmega128 Breakout Board in small factor size http://cgi.ebay.fr/ATMEGA128-16AU-CPU-PROTOTYPE-CPU-MODULE-MEGA128-/260720284318?pt=LH_DefaultDomain_0&hash=item3cb423d29e
-// TTL 3.3V to 5V from sparkfun 	http://www.sparkfun.com/products/8745
+
 
 /******************************************
  * Standard AVR LIB                       *
@@ -107,7 +107,7 @@ unsigned char evo_bt2_timestamp=0;
 
 // PB5 PPM OUTPUT 	-> CONNECT TO FRSKY INPUT PPM //  1K Ohm Resistor is problably welcome between AVR-FRSKY PPM CNX
 // PE1 PDO/TXD0   	-> CONNECT TO RX OF ROYAL EVO USING A VOLTAGE DIVISOR LIKE 15K/10K to have a 3.3V TTL FROM THE AVR 5V TTL
-// PE0 PDI/RXD0   	-> CONNECT TO TX OF ROYAL EVO USING A 10K RESITOR TO PROTECT HIGH CURRENT TO FLOW THERE
+// PE0 PDI/RXD0   	-> CONNECT DIRECTLY TO TX OF ROYAL EVO
 // PE7 PPM INPUT 	-> CONNECT TO YOUR FPV HEAD TRACKER (IN DEVELOPEMENT)
 
 // PD3 INT3/TXD1(1) -> CONNECT TO THE TTL INPUT OF A RS232 TO TTL CONVERTER LIKE MAX232 TO THE INPUT PIN OF FRSKY RS232
@@ -128,8 +128,9 @@ unsigned char evo_bt2_timestamp=0;
 // BUT PA5 A
 // PA7 ON BOARD LED -> USE FOR THE STATUT LED ON BOARD AND DEBUG PURPOSE(I USE A 1K Ohm Resistor)
 
-// RESERVED FOR FUTURE USE TO DRIVE AN SD CARD IN FAT FORMAT (WITH AN EXTERNAL FAT LIBRARY)
+// RESERVED FOR FUTURE USE TO DRIVE AN SD CARD TO STORE TELEMETRY HISTORY IN FAT FORMAT (WITH AN EXTERNAL FAT LIBRARY)
 // WARNING DONT GET FOOLED WITH MISO AND MOSI LABEL USED FOR PROGRAMMING THE ATMEGA128 AS THERE ARE CONNECT TO PE0 PE1
+// WILL WORK ON THIS FOR WINTER TIME DO NOT EXPECT THIS TO BE SOON AVAILABLE
 // PB3	MISO (SPI Bus Master Input/Slave Output)
 // PB2	MOSI (SPI Bus Master Output/Slave Input)
 // PB1 	SCK (SPI Bus Serial Clock)
@@ -140,7 +141,7 @@ unsigned char evo_bt2_timestamp=0;
  * TIMER USAGE OF THE ATMEGA 128          *
  ******************************************/
 // TIMER0 Is used to monitor Serial Input activity from royal evo, if we overflow we presume that Royal evo as send a entire frame
-// TIMER1 Is used to forge the PPM signal using the Toogle property on the PB5 PORT
+// TIMER1 (16bit) Is used to build the PPM signal using the Toogle property on the PB5 PORT
 // TIMER2 Not used right now could be use to generate sound if we don't find what we need with FRSKY and ROYAL EVO alarm.
 // TIMER3 Will be used to listen and calculate value from an input PPM stream on PE7 using external event timestamp ICR3 (For FPV HEAD TRACKER USAGE) that will be mixed with PPM output
 
@@ -187,9 +188,8 @@ unsigned char evo_bt2_timestamp=0;
 #define MODE_FLY_FPV		1	//NORMAL MODE + READING OF INPUT PIN PE7 FOR A PPM STREAM FROM FPV HEAD TRACKER
 #define MODE_FLY_FPV_MIX	2	//NORMAL MODE + READING OF INPUT PIN PE7 FOR A PPM STREAM FROM FPV HEAD TRACKER BUT OUTPUT WILL BE MIXED ON FPV_CHANEL_1_OUT NEED DECODER ON THE OTHER SIDE
 
-#define MODE_USB_ROYAL		3   //NOT AVAILABLE RIGHT NOW SHOULD BIND A USB-TO-TTL WITH ROYAL EVO PIN FOR UPGRADE OR BACKUP OF ROYAL DATA
+#define MODE_USB_ROYAL		3   //NOT TESTED BUT SHOULD WORK
 #define MODE_USB_FRSKY		4   //NOT AVAILABLE RIGHT NOW SHOULD BIND THE SAME USB-TO-TTL WITH FRSKY MODULE FOR UPGRADE FIRMWARE FOR EXAMPLE
-#define MODE_DEBUG			99	//SAME AS MODE FLY BUT TELEMETRY IS USED TO DISPLAY DEBUG PARAMETER
 
 /******************************************
  * Main Program                           *
@@ -236,6 +236,16 @@ int main(void)
 
 	SET_PORT_HIGH(A,7);		//LIGHT THE LED TO SAY HELLO :)
 
+	//serial1_writestring("Vincent el cador");
+
+	while(1==1)
+	{
+
+		_delay_ms(500);
+		 SET_PORT_LOW(A,7);
+		 _delay_ms(500);
+		 SET_PORT_HIGH(A,7);
+	}
 
 	//WE TRY TO DETECT WHAT KING OF POWER-ON WE ARE FACING
 	//I plan to make a sonor alarm that would reflect BROWN-OUT and WATCHDOG event because
@@ -261,7 +271,7 @@ int main(void)
 		if( READ_BIT(MCUCSR,BORF))
 		{
 
-			standard_boot=FALSE;	//Same scenario as watchdog event
+			standard_boot=FALSE;	//Same scenario as watchdog event but we should warn the user about this event (sound maybe)
 			SB_LOW(MCUCSR,WDRF);	//We reset the BROWN_OUT FLAG
 		}
 	#endif
@@ -283,11 +293,8 @@ int main(void)
 	//the default mode would alway be MODE_FLY (Read Royal and Frsky And Writing PPM and tememetry)
 	if(SET_PORT_AS_OUTPUT(A,0))
 
-	//WE SUPPOSE TROUBLE ON BOOT  (WatchDog or Brown-out) FORCE the mode to MODE_FLY
-	//AND TRY TO BEGIN AS FAST AS POSSIBLE THE PPM EMISSION
-	if(!standard_boot)
-		mode=MODE_FLY;
 
+	//Mode will be swichable with button later
 	mode=MODE_FLY;
 
 	switch(mode)
@@ -296,7 +303,6 @@ int main(void)
 		case MODE_FLY:
 		case MODE_FLY_FPV:
 		case MODE_FLY_FPV_MIX:
-		case MODE_DEBUG:
 			SET_PORT_HIGH(A,0); 	 	//WE LIGHT UP MAX232 VCC
 			Init_FrSky();				//Initialise Cnx with Frsky Module
 			set_evo_rssi_alarm_level(RSSI_EVO_ALARM);	//Royal Evo RSSI Alarm Level See define for more info
@@ -314,7 +320,7 @@ int main(void)
 
 				if(royal_trame_ok())	//Test if we have a valid data from EVO
 				{
-					//We have at least 20 incoming bytes to decode if less we will wait for the next event
+
 					if(serial0_input_writect==0)
 
 					{
@@ -376,13 +382,13 @@ int main(void)
 					  *	UNIT_V,UNIT_A, UNIT_MS, UNIT_KMH, UNIT_RPM, UNIT_DEGC, UNIT_DEGF, UNIT_M, UNIT_FUEL, UNIT_LQI, UNIT_MAH, UNIT_ML, UNIT_D, UNIT_E, UNIT_F
 					  */
 
-						 set_evo_telemetry(0,UNIT_LQI,	get_FrSky_rssi_up_link()			,0);
+						 set_evo_telemetry(0,UNIT_LQI,	get_FrSky_rssi_up_link()				,0);
 
-						 set_evo_telemetry(1,UNIT_LQI,	get_FrSky_rssi_down_link()			,0);
+						 set_evo_telemetry(1,UNIT_LQI,	get_FrSky_rssi_down_link()				,0);
 
-						set_evo_telemetry(2,UNIT_V,	get_FrSky_sensor1()*3.3*10*4/256		,0);
+						 set_evo_telemetry(2,UNIT_V,	get_FrSky_sensor1()*3.3*10*4/256		,0);
 
-						set_evo_telemetry(2,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
+						 set_evo_telemetry(3,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
 					 }
 
 

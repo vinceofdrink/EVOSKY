@@ -161,7 +161,7 @@ void Read_FrSky(void)
            {
               g_Frsky_buffer[2]=current_char;
               g_Frsky_buffer[3]=0; // We clear the next char (useful for the byte stuffing detection and traduction)
-              g_Frsky_ct=3; 
+              g_Frsky_ct=3;
            }
        break;
        default:
@@ -188,11 +188,9 @@ void Read_FrSky(void)
            else
            {
               g_Frsky_buffer[g_Frsky_ct]=current_char;
+              g_Frsky_buffer[g_Frsky_ct+1]= 0;  //We clean the next byte
               if(current_char!=0x7D) // Here come the joker the byte is stuffed need next char to guess the good value
-                 {
-                   g_Frsky_ct++;
-                   g_Frsky_buffer[g_Frsky_ct]= 0;  //We clean the next byte
-                 }
+            	  	 g_Frsky_ct++;
            }
            
        break;

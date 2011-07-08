@@ -113,6 +113,8 @@ ISR(USART0_RX_vect)
 void serial1_init(unsigned long baud)
 {
 		unsigned char baudrateDiv;
+		serial1_input_writect=0;
+		serial1_input_readct=0;
 		baudrateDiv = (unsigned char)((F_CPU+(baud*8L))/(baud*16L)-1);
 	  	  //GESTION SERIAL 2
 	  	UBRR1H = baudrateDiv >> 8;
