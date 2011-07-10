@@ -49,7 +49,7 @@ avrdude	-pm128 -cusbasp -u
 /******************************************
  * External HARDWARE INVOLVED             *
  ******************************************/
-// A TTL TO RS232 CONVERT (BASED ON MAX232) See on ebay
+// A TTL TO RS232 CONVERTER (BASED ON MAX232) See on ebay
 // A UBEC FROM HobbyKing for the VCC of Atmega (This is oversized choose whatever electonic that output a clean 5V like a dropout regulator) http://www.hobbyking.com/hobbyking/store/uh_viewItem.asp?idProduct=15212
 // A Atmega128 Breakout Board in small factor size http://cgi.ebay.fr/ATMEGA128-16AU-CPU-PROTOTYPE-CPU-MODULE-MEGA128-/260720284318?pt=LH_DefaultDomain_0&hash=item3cb423d29e
 
@@ -84,23 +84,28 @@ avrdude	-pm128 -cusbasp -u
 
 void telemetry_with_debug(void);
 
-//SOME MACRO TO HANDLE THE STATE OF OUR BUTTON
+//SOME Global to store button state
 unsigned char evo_bt1=0;
 unsigned char evo_bt2=0;
 unsigned char evo_bt1_timestamp=0;
 unsigned char evo_bt2_timestamp=0;
 
-//#define checkbutton()
+
 // Check for single or double click action.
-#define button_doubleclick_timming 	20 //1 equal around 20 ms
+#define button_doubleclick_timming 	2 //1 =+- 20ms (PPM FRAME)
 
 //Monitor click action
-#define checkbutton1()	if((READ_PORT_INPUT(A,1)==0) && evo_bt1==0){evo_bt1=1;evo_bt1_timestamp=0;}else{if(!(READ_PORT_INPUT(A,1)==0) && evo_bt1==1){evo_bt1=2;}else{if((READ_PORT_INPUT(A,1)==0) && evo_bt1==2){evo_bt1=3;}}} if(evo_bt1!=0)evo_bt1_timestamp++;
-#define checkbutton2()	if((READ_PORT_INPUT(A,2)==0) && evo_bt2==0){evo_bt2=1;evo_bt2_timestamp=0}else{if(!(READ_PORT_INPUT(A,2)==0) && evo_bt2==1){evo_bt2=2;}else{if((READ_PORT_INPUT(A,2)==0) && evo_bt2==2){evo_bt2=3;}}} if(evo_bt2!=0)evo_bt2_timestamp++;
 
-#define evosky_button1_pressed()	(evo_bt1!=0 && evo_bt1_timestamp>button_doubleclick_timming)
-#define evosky_button2_pressed()	(evo_bt2!=0 && evo_bt2_timestamp>button_doubleclick_timming)
-#define evosky_button_single_click() ()
+#define evosky_button1_click()	(evo_bt1!=0 && evo_bt1_timestamp>=button_doubleclick_timming)
+#define evosky_button2_click()	(evo_bt2!=0 && evo_bt2_timestamp>=button_doubleclick_timming)
+
+#define evosky_button1_double_click()		(evo_bt1>2)
+#define evosky_button2_double_click()  		(evo_bt2>2)
+
+#define evosky_button1_long_click()			(evo_bt1==1)
+#define evosky_button2_long_click() 		(evo_bt2==1)
+
+#define evosky_button_reset()				evo_bt1=evo_bt2=0;
 /******************************************
  * PIN USED ON ATMEGA128               *
  ******************************************/
@@ -221,7 +226,16 @@ int main(void)
 	SET_PORT_HIGH(A,2); //PULL UP
 
 
-
+	//DEFINE INTERRUPT FOR BUTTON ON PE4 and PE5
+	//We need interrupt only on falling edge (button pressed)
+	SB_LOW(EICRB,ISC41);
+	SB_HIGH(EICRB,ISC40);
+	SB_LOW(EICRB,ISC51);
+	SB_HIGH(EICRB,ISC50);
+	//Activate the interrupt
+	SB_HIGH(EIMSK,INT4);
+	SB_HIGH(EIMSK,INT5);
+	// Caption of interrupt are at the end of main.c ISR(INT4_vect) and ISR(INT5_vect)
 
 	//DEBUG PORT FOR LOGIC ANALYSER
 	SET_PORT_AS_OUTPUT(A,6);
@@ -342,11 +356,7 @@ int main(void)
 
 					 Read_FrSky();//Read and decode Data receive from FRSKY
 
-					 //In mode debug we switch for a debug display using telemetry output
-					 if(evosky_button1_pressed() || evosky_button2_pressed())
-						telemetry_with_debug();
-					 else
-					 {
+
 					//HANDLING TELEMETRY USER SERIAL DATA
 					 /*
 					  * NewUserDataFrSky() tell you if you have incoming byte from RX
@@ -389,7 +399,7 @@ int main(void)
 						 set_evo_telemetry(2,UNIT_V,	get_FrSky_sensor1()*3.3*10*4/256		,0);
 
 						 set_evo_telemetry(3,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
-					 }
+
 
 
 
@@ -487,6 +497,24 @@ int main(void)
 return 1;
 }
 
+
+//Button Interrupt
+ISR(INT4_vect)
+{
+	if(evo_bt1%2)
+	{
+		evo_bt1_timestamp=0;
+	}
+		evo_bt1++;
+}
+ISR(INT5_vect)
+{
+	if(evo_bt2%2)
+		{
+			evo_bt2_timestamp=0;
+		}
+			evo_bt2++;
+}
 extern unsigned int 	per_cycle_error;
 extern unsigned char 	per_frame_error;
 extern unsigned char 	frame_counter;
@@ -494,10 +522,7 @@ void telemetry_with_debug(void)
 {
 
 		unsigned char debug_type=2;
-		if(evosky_button1_pressed())
-			debug_type=0;
-		else
-			debug_type=2;
+
 		switch (debug_type)
 		{
 			//Show the 9 computed chanel of royal evo

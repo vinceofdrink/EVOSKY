@@ -138,8 +138,16 @@ void decode_evo_data(void)
             }
       //END_DEBUG
 
-      //Translate
+      //Translate for PPM output
+
+
+#if F_CPU == 11059200
       set_ppm1_chanel(i,MPX_voie[i]-(MPX_voie[i]>>2)+(MPX_voie[i]>>7));
+#elif F_CPU == 7372800
+      set_ppm1_chanel(MPX_voie[i]*16/44);
+#endif
+
+
               
 			
   }

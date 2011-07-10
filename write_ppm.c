@@ -32,6 +32,8 @@
   #define CT_TO_US                        1                  //  1 for prescaler 8
 #elif F_CPU == 11059200
 #define CT_TO_US                          1.3824
+#elif F_CPU == 7372800
+#define CT_TO_US						  0.92159
 #endif
 
 #define PPM_PULSE			300   * CT_TO_US   //in us PULSE
