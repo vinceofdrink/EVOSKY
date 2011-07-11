@@ -4,11 +4,13 @@
 // http://www.yannickf.net/spip/spip.php?article106
 /***********************************************************************************************************/
 #include <util/delay.h>
+#include <avr/eeprom.h>
 #define ROYAL_EVO_C_
 #include "write_ppm.h"
 #include "serial.h"
 #include "royal_evo.h"
 #include "macro_atmega.h"
+
 #define  ROYAL_MAX_CHANEL_VALUE 1950		// if channel value of royal evo is >ROYAL_MAX_CHANEL_VALUE or <ROYAL_MAX_CHANEL_VALUE then value is presumed not valid
 
 #define MODE_NORMAL				0x82		//DEC 130
@@ -28,6 +30,8 @@ unsigned char evo_tele_ct=0;		//COUNTER OF TELEMETRY TO SEND FOR EACH FRAME
 unsigned char 	frame_counter=0;
 unsigned int 	per_cycle_error=0;
 unsigned char 	per_frame_error=0;
+struct royal_tememetry_struct  royal_tele[12];
+struct royal_telmetry_memo_struct royal_memo;
 /*
 au départ, la communication est à 19200 baud
 la radio envoie « v »
@@ -65,20 +69,25 @@ ISR(TIMER0_OVF_vect)
 	serial0_input_writect=0;
 }
 
+void store_model()
+{
+	eeprom_busy_wait();
+	eeprom_write_block(&royal_memo,sizeof(royal_memo)*0,sizeof(royal_memo));
+	eeprom_update_block(&royal_memo,sizeof(royal_memo)*0,sizeof(royal_memo));
+}
 
-struct royal_tememetry_struct  royal_tele[14];
 void init_royal(unsigned char standard_boot)
 {
 
   for(int i=0;i<12;i++)
    royal_tele[i].unite=0;
-  unsigned char tmp;
-  tmp=init_evo_negotiation(standard_boot);
+  unsigned char evo_return_after_first_nego;
+  evo_return_after_first_nego=init_evo_negotiation(standard_boot);
 
   SET_PORT_LOW(A,7);
 
   _delay_ms(10);
-  end_evo_transaction(tmp);
+  end_evo_transaction(evo_return_after_first_nego);
 
   SET_PORT_HIGH(A,7);
   //We use OCR0B Register as a semaphore that tell us if we have a new frame ready to be handle

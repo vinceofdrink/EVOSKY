@@ -11,7 +11,14 @@ struct royal_tememetry_struct
 {
     unsigned char unite;
     signed int valeur;
+    signed int high_valeur;			//Store the highest value reccorded
+    signed int low_valeur;			//Store the lowest valut reccorded
     unsigned char alarme;
+};
+
+struct royal_telmetry_memo_struct
+{
+	signed int 		alarm_level[12];
 };
 
 #if defined(ROYAL_EVO_C_)

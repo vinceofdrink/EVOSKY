@@ -96,8 +96,8 @@ unsigned char evo_bt2_timestamp=0;
 
 //Monitor click action
 
-#define evosky_button1_click()	(evo_bt1!=0 && evo_bt1_timestamp>=button_doubleclick_timming)
-#define evosky_button2_click()	(evo_bt2!=0 && evo_bt2_timestamp>=button_doubleclick_timming)
+#define evosky_button1_click()	(evo_bt1!=0 && evo_bt1_timestamp++>=button_doubleclick_timming)
+#define evosky_button2_click()	(evo_bt2!=0 && evo_bt2_timestamp++>=button_doubleclick_timming)
 
 #define evosky_button1_double_click()		(evo_bt1>2)
 #define evosky_button2_double_click()  		(evo_bt2>2)
@@ -219,7 +219,7 @@ int main(void)
 	SET_PORT_LOW(A,0); 	 				//WE LIGHT UP MAX232 VCC LATER ON
 	SET_PORT_AS_OUTPUT(A,0); 			//DRIVE VCC OF MAX232
 
-	/* WORK IN PROGRESS
+
 
 
 	//BUTTON INTERACTION PE5 PE5
@@ -241,7 +241,31 @@ int main(void)
 	SB_HIGH(EIMSK,INT5);
 	// Caption of interrupt are at the end of main.c ISR(INT4_vect) and ISR(INT5_vect)
 
-	 */
+	serial0_init(9600);
+	while(1)
+	{
+		_delay_ms(25);
+
+			if(evosky_button1_click())
+			{
+				if(evosky_button1_double_click())
+				{
+					SET_PORT_HIGH(A,7);
+					serial0_writestring("Double click\n");
+				}
+				else if(evosky_button1_long_click())
+				{
+					TOOGLE_PORT(A,7);
+					serial0_writestring("Long click\n");
+				}
+				else
+				{
+					SET_PORT_LOW(A,7);
+					serial0_writestring("single click\n");
+				}
+			}
+
+	}
 
 
 
