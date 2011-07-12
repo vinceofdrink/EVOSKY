@@ -75,6 +75,10 @@ avrdude	-pm128 -cusbasp -u
 //The project is fairly simple and need to fullfill Realtime task based on hardware intteruption in good sync with the Frsky and Royal Evo
 //I am shure there are elegant way to match those goals in OOP but i did the choice of simplicity.
 //I also come straight from Arduino Programming so any advice on how to do this better is welcome
+
+//All the setting you could need to edit are grouped into settings.h
+#include "settings.h"
+
 #include "macro_atmega.h"	//Macro of my own because i never remember the semantic of TIMER etc of AVR
 #include "write_ppm.h"      //Provide all the function to write a PPM frame in asynchrone mode (using interrupt)
 #include "read_ppm.h"      //Provide all the function to listen to a PPM stream in asynchrone mode (using interrupt)
@@ -91,8 +95,7 @@ unsigned char evo_bt1_timestamp=0;
 unsigned char evo_bt2_timestamp=0;
 
 
-// Check for single or double click action.
-#define button_doubleclick_timming 	2 //1 =+- 20ms (PPM FRAME)
+
 
 //Monitor click action
 
@@ -108,11 +111,13 @@ unsigned char evo_bt2_timestamp=0;
 #define evosky_button_reset()				evo_bt1=evo_bt2=0;
 /******************************************
  * PIN USED ON ATMEGA128               *
- ******************************************/
-
+ ******************************************
+ ******************************************
 // PB5 PPM OUTPUT 	-> CONNECT TO FRSKY INPUT PPM //  1K Ohm Resistor is problably welcome between AVR-FRSKY PPM CNX
-// PE1 PDO/TXD0   	-> CONNECT TO RX OF ROYAL EVO USING A VOLTAGE DIVISOR LIKE 15K/10K to have a 3.3V TTL FROM THE AVR 5V TTL
-// PE0 PDI/RXD0   	-> CONNECT DIRECTLY TO TX OF ROYAL EVO
+
+
+// PE1 OR PD3 (Depending of UARTCHOICE )PDO/TXD0   	-> CONNECT TO RX OF ROYAL EVO USING A VOLTAGE DIVISOR LIKE 15K/10K to have a 3.3V TTL FROM THE AVR 5V TTL
+// PE0 OR PD2 (Depending of UARTCHOICE ) PDI/RXD0   	-> CONNECT DIRECTLY TO TX OF ROYAL EVO
 // PE7 PPM INPUT 	-> CONNECT TO YOUR FPV HEAD TRACKER (IN DEVELOPEMENT)
 
 // PD3 INT3/TXD1(1) -> CONNECT TO THE TTL INPUT OF A RS232 TO TTL CONVERTER LIKE MAX232 TO THE INPUT PIN OF FRSKY RS232
@@ -167,26 +172,7 @@ unsigned char evo_bt2_timestamp=0;
  INT4 PE4
 
  */
-/******************************************
- * USER DEFINED OPTION                    *
- ******************************************/
-#define OPTION_WATCHDOG		0  		//SET TO 1 IF WE WANT TO USE WATCHDOG TO RESET IF THE PROGRAM IS PRESUMED HANG
-#define OPTION_BROWN_OUT 	0 		//SET TO 1 IF WE WANT TO CHECK BROWN_OUT OPTION TO DETECT VOLTAGE GARBAGE
-#define RSSI_EVO_ALARM		30		//Set the level below wich Royal evo will trigger RSSI Low Level Alarm if 0 no alarm at all (this is a bit redundant with FRSKY alarm dont know what to do with it)
 
-// ALL THE FPV_CHANEL MIXING IS DESCRIBE BUT NOT DEVELOPED RIGHT NOW
-#define FPV_PPM_TYPE		1	// 1 for positive PPM 0 for negative PPM
-#define FPV_CHANEL_1_IN		1	//WICH CHANEL WE SHOULD READ FROM HEAD TRACKER PPM FOR OUR CHANEL1
-#define FPV_CHANEL_2_IN		2	//WICH CHANEL WE SHOULD READ FROM HEAD TRACKER PPM FOR OUR CHANEL2
-#define FPV_CHANEL_1_OUT	7	//ON WICH FRSKY OUTPUT WE WISH TO OUTPUT OUR FPV_CHANEL1 (IN MIX MODE ONLY CHANEL_1 WILL BE USED
-#define FPV_CHANEL_2_OUT	8	//ON WICH FRSKY OUTPUT WE WISH TO OUTPUT OUR FPV_CHANEL2
-
-
-// THE PROCESS OF CHANNEL MIXING IS TO DIVIDE BY 2 THE RESOLUTION AND ASSIGN CHANEL 1 INTO (-100% -> 0%) AND CHANEL 2 (0%->+100%)
-// WE CAN CONFIGURE A MIDDLE MARGIN TO AVOID CONFUSION BETWEEN C1 AND C2 SO CHANNEL 1 AND CHANNEL 2 WILL NEVER BE SET INTO A DEAD BAND DEFINED BELOW IN uS
-// THE FPV_CHANEL_MIXING_MARGIN IS AT THE CENTER OF THE SIGNAL
-// OF COURSE CHANEL MIXING NEED AN ARDUINO  CONNECTED TO THE FRSKY RX MODULE TO THE FPV_CHANEL_1_OUT CHANEL PIN TO SPLIT AGAIN THE CHANNEL AND SHOULD SHARE THE SAME MARGIN
-#define FPV_CHANEL_MIXING_MARGIN	50		//in uS   ( 1sec /1000 = Milliseconde /1000 = uS)
 
 /*****************************************
  * THE DIFFERENT OPERATING MODE OF THE EVOSKY (THERE ARE SELECTED AT BOOT TIME BY PRESSING THE EXTERNAL BUTTON) DO NOT EDIT CODE VALUE THERE NO NEED FOR IT
@@ -356,7 +342,7 @@ int main(void)
 				if(royal_trame_ok())	//Test if we have a valid data from EVO
 				{
 
-					if(serial0_input_writect==0)
+					if(evo_uart_input_writect==0)
 
 					{
 

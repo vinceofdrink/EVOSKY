@@ -5,6 +5,7 @@
 // 
 // Some acces to the royal evo chanel have been done in macro to avoid function call
 /***********************************************************************************************************/
+#include "settings.h"
 #ifndef ROYAL_EVO_H_
 #define ROYAL_EVO_H_
 struct royal_tememetry_struct
@@ -24,8 +25,31 @@ struct royal_telmetry_memo_struct
 #if defined(ROYAL_EVO_C_)
 #else
 extern struct royal_tememetry_struct  royal_tele[14];
-
 #endif
+
+//Royal Evo Binding to UART this allow to swing RoyalEvo from UART0 to UART1
+#if ROYAL_EVO_UART == 0
+#define evo_uart_change_rate(X)			serial0_change_rate(X)
+#define evo_uart_init(X)				serial0_init(X)
+#define evo_uart_NewData()				serial0_NewData()
+#define evo_uart_readchar()				serial0_readchar()
+#define	evo_uart_writechar(X)			serial0_writechar(X)
+#define	evo_uart_writestring(X)			serial0_writestring(X)
+#define	evo_uart_direct_buffer_read(X)	serial0_direct_buffer_read(X)
+#define evo_uart_input_writect			serial0_input_writect
+#endif
+#if ROYAL_EVO_UART == 1
+#define evo_uart_change_rate(X)			serial1_change_rate(X)
+#define evo_uart_init(X)				serial1_init(X)
+#define evo_uart_NewData()				serial1_NewData()
+#define evo_uart_readchar()				serial1_readchar()
+#define	evo_uart_writechar(X)			serial1_writechar(X)
+#define	evo_uart_writestring(X)			serial1_writestring(X)
+#define	evo_uart_direct_buffer_read(X)	serial1_direct_buffer_read(X)
+#define evo_uart_input_writect			serial1_input_writect
+#endif
+
+
 //define pour la t�l�m�trie
 #define UNIT_V		1
 #define UNIT_A		2
@@ -65,8 +89,8 @@ void set_evo_rssi_alarm_level(unsigned char );
 #define set_royal_evo_rssi(VALUE)  evo_rssi=VALUE
 #define get_royal_chanel(VOIE)  MPX_voie[VOIE]
 
-#define royal_evo_data_ready()  (data_counter>5 && (TCNT0-h_serial_timestamp)>2)  //Valid MPX TRAME start 0x80 and length 35
-#define royal_evo_data_valid()  (data_counter==35 && data[0]==0x82)  // (194 ou 130); 0x80 dans le mode « Fast Response », 0x82 dans le mode normal, et 0x86 pour le réglage du Fail-Safe
+//#define royal_evo_data_ready()  (data_counter>5 && (TCNT0-h_serial_timestamp)>2)  //Valid MPX TRAME start 0x80 and length 35
+//#define royal_evo_data_valid()  (data_counter==35 && data[0]==0x82)  // (194 ou 130); 0x80 dans le mode « Fast Response », 0x82 dans le mode normal, et 0x86 pour le réglage du Fail-Safe
 
 #define set_evo_telemetry(POSITION, UNITE,VALEUR, ALARME) royal_tele[POSITION].unite=UNITE; royal_tele[POSITION].valeur=VALEUR;royal_tele[POSITION].alarme=ALARME
 #define get_evo_telemetry_counter()	evo_tele_ct

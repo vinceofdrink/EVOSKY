@@ -16,14 +16,14 @@ void serial0_init(unsigned long baud);
 void serial0_close(void);
 void serial0_writechar( unsigned char data );
 void serial0_writestring(char * str);
-
-void serial_0_change_rate(unsigned long baud);
+void serial0_change_rate(unsigned long baud);
 
 
 void serial1_init(unsigned long baud);
 void serial1_close(void);
 void serial1_writechar( unsigned char data );
 void serial1_writestring(char * str);
+void serial1_change_rate(unsigned long baud);
 unsigned char serial0_readchar(void);
 unsigned char serial1_readchar(void);
 

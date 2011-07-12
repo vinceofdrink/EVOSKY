@@ -5,7 +5,7 @@
  *      Author: vince
  *
  *      PE1 PDO/TXD0 (Programming Data Output or UART0 Transmit Pin)
- *      PE0 PDI/RXD0 (Programming Data Input or UART0 Receive Pin)
+ *      PE0 PDI/RXD0 (Programming Data Input or  UART0 Receive Pin)
  *
  *      PD3 INT3/TXD1(1) (External Interrupt3 Input or UART1 Transmit Pin)
  *      PD2 INT2/RXD1(1) (External Interrupt2 Input or UART1 Receive Pin
@@ -24,6 +24,7 @@
 
 #define SERIAL_C_
 #include "serial.h"
+#include "settings.h"
 
 void serial0_init(unsigned long baud)
 {
@@ -45,7 +46,7 @@ void serial0_init(unsigned long baud)
 	  sei();
 
 }
-void serial_0_change_rate(unsigned long baud)
+void serial0_change_rate(unsigned long baud)
 {
 	unsigned int baudrateDiv;
 		  cli();
@@ -98,7 +99,9 @@ ISR(USART0_RX_vect)
 
 	//Hack Specific to this project
 	//We Reset to 0 TIMER0 TO POSTPONE OVERFLO Until We have complete a RoyalEvo Frame
+#if ROYAL_EVO_UART == 0
 	ooTIMER0_CT=0;
+#endif
 
 	//Handle Circular Buffer
 	if(SERIAL0_BUFFER==serial0_input_writect)
@@ -161,11 +164,29 @@ unsigned char serial1_readchar(void)
 		serial1_input_readct=0;
 	return tmp;
 }
+
+void serial1_change_rate(unsigned long baud)
+{
+	unsigned int baudrateDiv;
+		  cli();
+		  //baudrateDiv = (unsigned char)((F_CPU+(baud*8L))/(baud*16L)-1);
+		  baudrateDiv =F_CPU/16/baud-1;
+		  UBRR1H =(unsigned char) baudrateDiv >> 8;
+		  UBRR1L =(unsigned char) baudrateDiv;
+		  sei();
+}
+
 ISR(USART1_RX_vect)
 {
 	//READ UDR1
    // Code to be executed when the USART receives a byte here
 	serial1_input[serial1_input_writect++]=UDR1;
+
+	//Hack Specific to this project
+	//We Reset to 0 TIMER0 TO POSTPONE OVERFLO Until We have complete a RoyalEvo Frame
+#if ROYAL_EVO_UART == 1
+	ooTIMER0_CT=0;
+#endif
 
 
 	//Gestion du débordement du buffer

@@ -2,8 +2,10 @@
 // This Section handle all the transaction From FRSky To AVR SERIAL INPUT
 // Author : Vincent de Boysson vinceofdrink@gmail.com
 /***********************************************************************************************************/
+#include "settings.h"
 #include "serial.h"
 #include "tools.h"
+#include "FrSky.h"
 /**
  * USER CONSTANT
  */
@@ -57,7 +59,7 @@ struct moyenne_u_char  g_FrSky_rssi_up_link_moyenne,g_FrSky_rssi_down_link_moyen
 void Init_FrSky(void)
 {
    // Setup The Virtual UART Connexion ( Thanks to  http://arduiniana.org/libraries/newsoftserial/ )
-	serial1_init(9600);
+	frsky_uart_init(9600);
 	init_moyenne(&g_FrSky_rssi_down_link_moyenne,g_FrSky_rssi_down_link);
 	init_moyenne(&g_FrSky_rssi_up_link_moyenne,g_FrSky_rssi_up_link);
 
@@ -65,7 +67,7 @@ void Init_FrSky(void)
 void close_FrSky(void)
 {
 
-	serial1_close();
+	frsky_uart_close();
   
 }
 
@@ -94,9 +96,9 @@ void Read_FrSky(void)
   unsigned char i;
   
   
-  while( serial1_NewData())
+  while( frsky_uart_NewData())
   {
-     current_char= serial1_readchar();
+     current_char= frsky_uart_readchar();
 
      //This part handle a suposed good frame completed
      if(g_Frsky_ct==11) //We shoud have a correct count for the frame

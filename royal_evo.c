@@ -3,6 +3,7 @@
 // Almost all the code is derivated or copied from the excellent work of YannickF Project MPX2PPM        
 // http://www.yannickf.net/spip/spip.php?article106
 /***********************************************************************************************************/
+#include "settings.h"
 #include <util/delay.h>
 #include <avr/eeprom.h>
 #define ROYAL_EVO_C_
@@ -66,7 +67,7 @@ ISR(TIMER0_OVF_vect)
 {
 	ooTIMER0_STOP;
 	OCR0=1;
-	serial0_input_writect=0;
+	evo_uart_input_writect=0;
 }
 
 void store_model()
@@ -113,7 +114,7 @@ void decode_evo_data(void)
   if (emulation_mode)
       {nbvoies=5+emulation_mode;} // 5 + nbre choisi par les cavaliers 
   else
-      {nbvoies=serial0_direct_buffer_read(0);} //1ere donnÈe = nbre de voies
+      {nbvoies=evo_uart_direct_buffer_read(0);} //1ere donnÈe = nbre de voies
 
   if (nbvoies>12) {nbvoies=12;} //PPM12 au maximum
   if (nbvoies<6) {nbvoies=6;}; //PPM6 au minimum
@@ -126,13 +127,13 @@ void decode_evo_data(void)
 	  revert_value = MPX_voie[i];
       /*
 	  buffer_ct++;
-      MPX_voie[i]= (serial0_direct_buffer_read(buffer_ct));
+      MPX_voie[i]= (evo_uart_direct_buffer_read(buffer_ct));
       buffer_ct++;
-      MPX_voie[i]+=((serial0_direct_buffer_read(buffer_ct))<<8);
+      MPX_voie[i]+=((evo_uart_direct_buffer_read(buffer_ct))<<8);
 		*/
 
-      MPX_voie[i]=((serial0_direct_buffer_read(2*i+2))<<8);
-      MPX_voie[i]+= (serial0_direct_buffer_read(2*i+1));
+      MPX_voie[i]=((evo_uart_direct_buffer_read(2*i+2))<<8);
+      MPX_voie[i]+= (evo_uart_direct_buffer_read(2*i+1));
       if (MPX_voie[i]>=0x8000) {MPX_voie[i]=(signed int) (MPX_voie[i]-0x10000);}
 
       //if (MPX_voie[i]>=0x8000) {MPX_voie[i]=(signed int) (MPX_voie[i]-0x10000);}
@@ -179,8 +180,8 @@ void decode_evo_data(void)
 unsigned char init_evo_negotiation(unsigned char standard_boot)
 {
 
-	//serial0_close();
-	serial0_init(19200);
+	//evo_uart_close();
+	evo_uart_init(19200);
   unsigned char c=0;
 
   unsigned int escape=0;
@@ -195,11 +196,11 @@ unsigned char init_evo_negotiation(unsigned char standard_boot)
 		  if(escape>500)
 			  return 'g';
 	  }
-     if(serial0_NewData())
+     if(evo_uart_NewData())
      {
 
 
-  		c =  serial0_readchar(); //on rÈcupËre la derniËre donnÈes reÁue
+  		c =  evo_uart_readchar(); //on rÈcupËre la derniËre donnÈes reÁue
   		if (c=='v') // on rÈpond ‡ la radio qui veut savoir le type de module utilisÈ
   		{
 
@@ -208,14 +209,14 @@ unsigned char init_evo_negotiation(unsigned char standard_boot)
 			//LED_PORT &= ~(1<<LED_NUM);// led Èteinte
 
 
-			serial0_writestring("M-LINK   V3200"); // module M-LINK 2.4 GHz V3027 V3200
+			evo_uart_writestring("M-LINK   V3200"); // module M-LINK 2.4 GHz V3027 V3200
 
 			//uart_puts("40  HFMS2V268 Jul 11 200812:52:44"); //module 40 MHz
-			//serial0_writestring("35ABHFMS2V268 Jul 11 200812:52:00"); //module 35 MHz
+			//evo_uart_writestring("35ABHFMS2V268 Jul 11 200812:52:00"); //module 35 MHz
 			//	evo_start_mode=1;
 
-			serial0_writechar(0x0D);
-			serial0_writechar(0x0A);
+			evo_uart_writechar(0x0D);
+			evo_uart_writechar(0x0A);
 
 			//on remet le buffer au dÈbut (en principe, ‡ ce moment, il n'y a qu'un octet)
 
@@ -227,23 +228,23 @@ unsigned char init_evo_negotiation(unsigned char standard_boot)
 
 			_delay_ms(12);
 
-			serial0_writestring("35AB2G402400"); // module 35 MHz  35AB2G402400
+			evo_uart_writestring("35AB2G402400"); // module 35 MHz  35AB2G402400
 
 			//uart_puts("40  051406750"); // module 40 MHz
 			//avec un module MLINK, la radio ne demande pas la frÈquence
-			serial0_writechar(0x01); // ??
+			evo_uart_writechar(0x01); // ??
 		
 
 			_delay_ms(12);
-			//serial0_writechar(0x03); // ?? //scanner 35 MHz rÈpond que la frÈquence est libre
-			//serial0_writechar(0x0F); // ??
-			//serial0_writechar('0'); // ??
-			serial0_writechar(0x40); // ?? // pas de scanner 40 MHz, il faut confirmer qu'on veut utiliser cette frÈquence
-			serial0_writechar(0x0A); // ??
-			serial0_writechar(0x33); // ??
+			//evo_uart_writechar(0x03); // ?? //scanner 35 MHz rÈpond que la frÈquence est libre
+			//evo_uart_writechar(0x0F); // ??
+			//evo_uart_writechar('0'); // ??
+			evo_uart_writechar(0x40); // ?? // pas de scanner 40 MHz, il faut confirmer qu'on veut utiliser cette frÈquence
+			evo_uart_writechar(0x0A); // ??
+			evo_uart_writechar(0x33); // ??
 		
-			serial0_writechar(0x0D); // fin de la transmission
-			serial0_writechar(0x0A);
+			evo_uart_writechar(0x0D); // fin de la transmission
+			evo_uart_writechar(0x0A);
 
 			//LED_PORT |= (1<<LED_NUM);// led allumÈe
 			_delay_ms(12);
@@ -264,8 +265,8 @@ unsigned char init_evo_negotiation(unsigned char standard_boot)
 void end_evo_transaction(unsigned char c)
 {
     unsigned int i;
-    //serial0_close();
-    serial_0_change_rate(115200);
+    //evo_uart_close();
+    evo_uart_change_rate(115200);
 	if (c=='b') // demande de binding (uniquement module 2.4GHz)
 	{
                 
@@ -323,26 +324,26 @@ void end_evo_transaction(unsigned char c)
 void send_commonbind(void) //inutile pour un module 35 ou 40 MHz
 {
 	// 4 octets qui sont prÈsents, binding en cours ou pas
-	serial0_writechar(0xFF); // ??
-	serial0_writechar(0x00); // ??
-	serial0_writechar(0x00); // ??
-	serial0_writechar(0x00); // ??
+	evo_uart_writechar(0xFF); // ??
+	evo_uart_writechar(0x00); // ??
+	evo_uart_writechar(0x00); // ??
+	evo_uart_writechar(0x00); // ??
 }
 void send_bind(void) //inutile pour un module 35 ou 40 MHz
 {
-	serial0_writechar(0x20); // ?? // 0x00 si pas de binding, 0x20 si binding en cours
+	evo_uart_writechar(0x20); // ?? // 0x00 si pas de binding, 0x20 si binding en cours
 	send_commonbind();
 }
 
 void send_nobind(void) //inutile pour un module 35 ou 40 MHz
 {
-	serial0_writechar(0x00); // ?? // 0x00 si pas de binding, 0x20 si binding en cours
+	evo_uart_writechar(0x00); // ?? // 0x00 si pas de binding, 0x20 si binding en cours
 	send_commonbind();
 }
 
 void send_range(void) //inutile pour un module 35 ou 40 MHz
 {
-	serial0_writechar(0x40);
+	evo_uart_writechar(0x40);
 	send_commonbind();
 }
 
@@ -360,17 +361,17 @@ void send_telemetry(unsigned char position, unsigned char unite,signed int valeu
 	if (alarme) valeur++; // on ajoute 1 si on veut l'alarme
 	 
 	//1er octet (alarme de portÈe)
-	if (evo_rssi<=30) serial0_writechar(0x40); else serial0_writechar(0x00);
+	if (evo_rssi<=30) evo_uart_writechar(0x40); else evo_uart_writechar(0x00);
 	//2e octet
-	serial0_writechar(0x01);// pas selon stoeckli
+	evo_uart_writechar(0x01);// pas selon stoeckli
 	//3e octet (position � l'�cran + unit�e� de mesure)
-	serial0_writechar( (position<<4) + unite );
+	evo_uart_writechar( (position<<4) + unite );
 	//4e octet (poids faible de la valeur)
-	serial0_writechar( (char)valeur );
+	evo_uart_writechar( (char)valeur );
 	//5e octet (poids fort de la valeur)
-	serial0_writechar( (char)(valeur>>8) );
+	evo_uart_writechar( (char)(valeur>>8) );
 	// on dirait qu'il faut finir par OO selon stoeckli
-	serial0_writechar(0x00);
+	evo_uart_writechar(0x00);
 }
 
 
@@ -386,18 +387,18 @@ void send_evo_telemetry()
   if (royal_tele[evo_tele_ct].alarme) valeur++; // on ajoute 1 si on veut l'alarme
 
   //1er octet (alarme de portÈe)
-  if (evo_rssi<=evo_alarm && evo_alarm!=0) serial0_writechar(0x40);
-  else serial0_writechar(0x00);
+  if (evo_rssi<=evo_alarm && evo_alarm!=0) evo_uart_writechar(0x40);
+  else evo_uart_writechar(0x00);
   //2e octet
-  serial0_writechar(0x01);// pas selon stoeckli
+  evo_uart_writechar(0x01);// pas selon stoeckli
   //3e octet (position ‡ l'Ècran + unitÈ de mesure)
-  serial0_writechar( (evo_tele_ct<<4) + royal_tele[evo_tele_ct].unite );
+  evo_uart_writechar( (evo_tele_ct<<4) + royal_tele[evo_tele_ct].unite );
   //4e octet (poids faible de la valeur)
-  serial0_writechar( (char)valeur );
+  evo_uart_writechar( (char)valeur );
   //5e octet (poids fort de la valeur)
-  serial0_writechar( (char)(valeur>>8) );
+  evo_uart_writechar( (char)(valeur>>8) );
   // on dirait qu'il faut finir par OO selon stoeckli
-  serial0_writechar(0x00);
+  evo_uart_writechar(0x00);
   evo_tele_ct++;
   if(royal_tele[ evo_tele_ct].unite==0)
    evo_tele_ct=0;
@@ -410,6 +411,7 @@ void set_evo_rssi_alarm_level(unsigned char evo_alarm_param)
 	if(evo_alarm_param==0)
 		evo_alarm_param=100;
 	evo_alarm=evo_alarm_param;
+
 }
 
 
