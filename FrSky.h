@@ -1,8 +1,8 @@
 #include "settings.h"
-extern unsigned char g_FrSky_rssi_up_link;       // RSSI Value UP-LINK (RADIO TO MODEL)
-extern unsigned char g_FrSky_rssi_down_link;       // RSSI Value DOWN-LINK (RX TELEMETRY TO RADIO)
-extern unsigned char g_FrSky_sensor1;     // Value of Sensor 1
-extern unsigned char g_FrSky_sensor2;     // Value of Sensor 2
+extern unsigned char g_FrSky_rssi_up_link;       	// RSSI Value UP-LINK (RADIO TO MODEL)
+extern unsigned char g_FrSky_rssi_down_link;       	// RSSI Value DOWN-LINK (RX TELEMETRY TO RADIO)
+extern unsigned char g_FrSky_sensor1;     			// Value of Sensor 1
+extern unsigned char g_FrSky_sensor2;     			// Value of Sensor 2
 
 //MACRO TO AVOID FUNCTION CALL THAT COST A BIT IN PROC
 #define get_FrSky_rssi_up_link() 		g_FrSky_rssi_up_link

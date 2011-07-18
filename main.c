@@ -85,34 +85,14 @@ avrdude	-pm128 -cusbasp -u
 #include "serial.h"			//Provide basic access to UART0 and UART1 of Atmega 128
 #include "royal_evo.h"		//Provide all the function to handle communication with Royal Evo Radio
 #include "FrSky.h"			//Provide all the function to handle communicatio with FRSKY TX
-
+#include "button.h"			//Provide all the detection of button interaction with user
 void telemetry_with_debug(void);
 
-//SOME Global to store button state
-unsigned char evo_bt1=0;
-unsigned char evo_bt2=0;
-unsigned char evo_bt1_timestamp=0;
-unsigned char evo_bt2_timestamp=0;
 
-
-
-
-//Monitor click action
-
-#define evosky_button1_click()	(evo_bt1!=0 && evo_bt1_timestamp++>=button_doubleclick_timming)
-#define evosky_button2_click()	(evo_bt2!=0 && evo_bt2_timestamp++>=button_doubleclick_timming)
-
-#define evosky_button1_double_click()		(evo_bt1>2)
-#define evosky_button2_double_click()  		(evo_bt2>2)
-
-#define evosky_button1_long_click()			(evo_bt1==1)
-#define evosky_button2_long_click() 		(evo_bt2==1)
-
-#define evosky_button_reset()				evo_bt1=evo_bt2=0;
 /******************************************
- * PIN USED ON ATMEGA128               *
- ******************************************
- ******************************************
+ * PIN USED ON ATMEGA128               	  *
+******************************************/
+
 // PB5 PPM OUTPUT 	-> CONNECT TO FRSKY INPUT PPM //  1K Ohm Resistor is problably welcome between AVR-FRSKY PPM CNX
 
 
@@ -160,16 +140,18 @@ unsigned char evo_bt2_timestamp=0;
 /* MEMO  EXTERNAL INTERRUPT
  *
  //USED
- INTO PD0
+ INTO PD0 //
  INT1 PD1
  INT2 PD2
  INT3 PD3
- INT7 PE7
+ INT7 PE7 //PPM INPUT FOR HEADTRACKER
+
+ INT5 PE5 //BUTTON
+ INT4 PE4 //BUTTON
 
  //FREE
  INT6 PE6
- INT5 PE5
- INT4 PE4
+
 
  */
 
@@ -194,79 +176,14 @@ int main(void)
 	unsigned char mode;					//STORE WICH MODE WE RUN THE EVOSKY
 	unsigned char standard_boot=TRUE; 	//TRUE for normal meaning (doing nego with royal and then listening to royal frame) FALSE (waiting about 500ms for nego and then go directly to listining evo frame)
 
-
-
-
-
-
-
 	SET_PORT_AS_OUTPUT(A,7); 			//DEFINE LED PORT AS OUTPUT
+	SET_PORT_HIGH(A,7);					//LIGHT THE LED TO SAY HELLO :)
 
 	SET_PORT_LOW(A,0); 	 				//WE LIGHT UP MAX232 VCC LATER ON
 	SET_PORT_AS_OUTPUT(A,0); 			//DRIVE VCC OF MAX232
 
 
 
-
-	//BUTTON INTERACTION PE5 PE5
-	SET_PORT_AS_INPUT(E,4);
-	SET_PORT_HIGH(E,4);	//PULL UP
-
-	SET_PORT_AS_INPUT(E,5);
-	SET_PORT_HIGH(E,5); //PULL UP
-
-
-	//DEFINE INTERRUPT FOR BUTTON ON PE4 and PE5
-	//We need interrupt only on falling edge (button pressed)
-	SB_LOW(EICRB,ISC41);
-	SB_HIGH(EICRB,ISC40);
-	SB_LOW(EICRB,ISC51);
-	SB_HIGH(EICRB,ISC50);
-	//Activate the interrupt
-	SB_HIGH(EIMSK,INT4);
-	SB_HIGH(EIMSK,INT5);
-	// Caption of interrupt are at the end of main.c ISR(INT4_vect) and ISR(INT5_vect)
-
-	serial0_init(9600);
-	while(1)
-	{
-		_delay_ms(25);
-
-			if(evosky_button1_click())
-			{
-				if(evosky_button1_double_click())
-				{
-					SET_PORT_HIGH(A,7);
-					serial0_writestring("Double click\n");
-				}
-				else if(evosky_button1_long_click())
-				{
-					TOOGLE_PORT(A,7);
-					serial0_writestring("Long click\n");
-				}
-				else
-				{
-					SET_PORT_LOW(A,7);
-					serial0_writestring("single click\n");
-				}
-			}
-
-	}
-
-
-
-
-	SET_PORT_HIGH(A,7);		//LIGHT THE LED TO SAY HELLO :)
-
-
-	while(1==1)
-	{
-
-		_delay_ms(500);
-		 SET_PORT_LOW(A,7);
-		 _delay_ms(500);
-		 SET_PORT_HIGH(A,7);
-	}
 
 	//WE TRY TO DETECT WHAT KING OF POWER-ON WE ARE FACING
 	//I plan to make a sonor alarm that would reflect BROWN-OUT and WATCHDOG event because
@@ -317,7 +234,7 @@ int main(void)
 
 	//Mode will be swichable with button later
 	mode=MODE_FLY;
-
+	standard_boot=FALSE;
 	switch(mode)
 	{
 
@@ -329,7 +246,8 @@ int main(void)
 			set_evo_rssi_alarm_level(RSSI_EVO_ALARM);	//Royal Evo RSSI Alarm Level See define for more info
 			init_royal(standard_boot);	//Initialise Cnx with Royal Evo (standard boot means we will wait for real negotiation with royal evo otherwise if we cannot akwnoledge Royal evo we skip try several nego and then start directly to listening to channel position stream
 			init_ppm();					//Initialise PPM Writer
-
+			set_evo_telemetry(0,UNIT_LQI,	0				,0);
+			init_button();
 			//We activate the watchdog that will trigger a reset if wdt_reset() is not call every 120MS
 			#if OPTION_WATCHDOG==1
 				wdt_enable(WDTO_120MS);
@@ -346,14 +264,10 @@ int main(void)
 
 					{
 
-					//TOOGLE_PORT(A,7);//BLINK LED
-					//DECODE PART AND PPM
-					 TOOGLE_PORT(A,6);
-					 decode_evo_data(); //Decode data from evo and fill the chanel value into ppm module
-					 TOOGLE_PORT(A,6);
-					 write_ppm();		//Write a PPM Signal (Asynchrone process)
+					TOOGLE_PORT(A,7);//BLINK LED
 
-
+					decode_evo_data(); //Decode data from evo and fill the chanel value into ppm module
+					write_ppm();		//Write a PPM Signal (Asynchrone process)
 
 					//We update the watchdog to prevent a reset
 					//as we have declare a set 120MS Max the watch dog would trigger after  4/5 PPM Frame not being send after and reset the atmega128 (we handle such a restart)
@@ -399,6 +313,51 @@ int main(void)
 					  *	UNIT_V,UNIT_A, UNIT_MS, UNIT_KMH, UNIT_RPM, UNIT_DEGC, UNIT_DEGF, UNIT_M, UNIT_FUEL, UNIT_LQI, UNIT_MAH, UNIT_ML, UNIT_D, UNIT_E, UNIT_F
 					  */
 
+
+						 /*
+
+
+						 set_evo_telemetry(4,UNIT_LQI,	get_royal_chanel(4)					,0);	//Chanel 5
+						 				set_evo_telemetry(5,UNIT_LQI,	get_royal_chanel(5)					,0);	//Chanel 6
+						 				set_evo_telemetry(6,UNIT_LQI,	get_royal_chanel(6)					,0);	//Chanel 7
+						 				set_evo_telemetry(7,UNIT_LQI,	get_royal_chanel(7)					,0);	//Chanel 8
+						 				set_evo_telemetry(8,UNIT_LQI,	get_royal_chanel(8)					,0);	//Chanel 9
+						*/
+						 //Handle user interaction
+						 switch(get_button_state())
+						 {
+							 case BUTTON_NO_EVENT:
+
+							 break;
+							 case BUTTON1_SINGLE_CLICK:
+								 set_evo_display_mode(EVO_DISPLAY_NORMAL);
+							 break;
+							 case BUTTON1_DOUBLE_CLICK:
+
+							 break;
+
+							 case BUTTON1_LONG_CLICK:
+								 set_evo_display_mode(EVO_DISPLAY_LOW);
+							 break;
+
+							 case BUTTON2_SINGLE_CLICK:
+
+							 break;
+
+							 case BUTTON2_DOUBLE_CLICK:
+
+							 break;
+
+							 case BUTTON2_LONG_CLICK:
+								 set_evo_display_mode(EVO_DISPLAY_HIGH);
+							 break;
+
+							 case BUTTON_BOTH_SINGLE_CLICK:
+
+							 break;
+						 }
+
+
 						 set_evo_telemetry(0,UNIT_LQI,	get_FrSky_rssi_up_link()				,0);
 
 						 set_evo_telemetry(1,UNIT_LQI,	get_FrSky_rssi_down_link()				,0);
@@ -407,15 +366,12 @@ int main(void)
 
 						 set_evo_telemetry(3,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
 
-
-
-
-
-					 _delay_ms(15);
+					// _delay_ms(15);
 					 // We wait for ppm frame to be done until that
-					 // as we do not have nothing better to do we decode
-					 // incoming information from FrSky()
-					 // while (!is_ppm_active())Read_FrSky();
+					 while (is_ppm_active())
+					 {
+						 Read_FrSky();
+					 }
 
 
 
@@ -505,23 +461,7 @@ return 1;
 }
 
 
-//Button Interrupt
-ISR(INT4_vect)
-{
-	if(evo_bt1%2)
-	{
-		evo_bt1_timestamp=0;
-	}
-		evo_bt1++;
-}
-ISR(INT5_vect)
-{
-	if(evo_bt2%2)
-		{
-			evo_bt2_timestamp=0;
-		}
-			evo_bt2++;
-}
+
 extern unsigned int 	per_cycle_error;
 extern unsigned char 	per_frame_error;
 extern unsigned char 	frame_counter;

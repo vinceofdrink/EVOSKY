@@ -27,6 +27,7 @@ unsigned int evo_rssi=100;
 unsigned char evo_alarm=30;
 unsigned char evo_tele_ct=0;		//COUNTER OF TELEMETRY TO SEND FOR EACH FRAME
 
+unsigned char evo_display_mode=EVO_DISPLAY_NORMAL;
 
 unsigned char 	frame_counter=0;
 unsigned int 	per_cycle_error=0;
@@ -80,8 +81,7 @@ void store_model()
 void init_royal(unsigned char standard_boot)
 {
 
-  for(int i=0;i<12;i++)
-   royal_tele[i].unite=0;
+  reset_telemetry();
   unsigned char evo_return_after_first_nego;
   evo_return_after_first_nego=init_evo_negotiation(standard_boot);
 
@@ -101,6 +101,18 @@ void init_royal(unsigned char standard_boot)
 
 
 
+}
+//Reset all the telemetry value to default
+//used on init and on display context switch
+void reset_telemetry(void)
+{
+	for(int i=0;i<12;i++)
+	{
+	   royal_tele[i].unite=0;
+	   royal_tele[i].valeur=0;
+	   royal_tele[i].high_valeur=-10000;
+	   royal_tele[i].low_valeur=+10000;
+	}
 }
 //This function decode royal evo frame by reading the linear  UART buffer
 void decode_evo_data(void)
@@ -381,7 +393,22 @@ void send_evo_telemetry()
 
   if(royal_tele[ evo_tele_ct].unite==0)
     return;
-  signed int valeur = royal_tele[evo_tele_ct].valeur;
+  signed int valeur=0;
+
+  switch(evo_display_mode)
+  {
+  	  case EVO_DISPLAY_NORMAL:
+  	  	  valeur=royal_tele[evo_tele_ct].valeur;
+  	  break;
+
+  	  case EVO_DISPLAY_LOW:
+  		valeur=royal_tele[evo_tele_ct].low_valeur;
+  	  break;
+
+  	  case EVO_DISPLAY_HIGH:
+  		valeur=royal_tele[evo_tele_ct].high_valeur;
+  	  break;
+  }
   valeur=valeur*2; // on multiplie par 20 (format Multiplex)
   //valeur=valeur*10; //inutile depuis le firmware 3.41
   if (royal_tele[evo_tele_ct].alarme) valeur++; // on ajoute 1 si on veut l'alarme
@@ -414,4 +441,11 @@ void set_evo_rssi_alarm_level(unsigned char evo_alarm_param)
 
 }
 
+/**
+ * Set the current evo display mode (normale
+ */
+void set_evo_display_mode(unsigned char displaymode)
+{
+	evo_display_mode=displaymode;
+}
 

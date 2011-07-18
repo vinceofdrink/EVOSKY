@@ -67,6 +67,10 @@ extern struct royal_tememetry_struct  royal_tele[14];
 #define UNIT_E		0x0E
 #define UNIT_F		0x0F
 
+//Display Mode
+#define EVO_DISPLAY_NORMAL	0
+#define EVO_DISPLAY_HIGH	1
+#define EVO_DISPLAY_LOW		2
 
 extern unsigned int evo_rssi;
 extern signed int MPX_voie[16];
@@ -83,6 +87,8 @@ void send_commonbind(void);
 void send_range(void);
 void send_evo_telemetry();
 void set_evo_rssi_alarm_level(unsigned char );
+void set_evo_display_mode(unsigned char );
+void reset_telemetry(void);
 
 //MACRO DEFINED TO AVOID FUNCTION CALL THAT COST A BIT IN PROC
 #define royal_trame_ok() OCR0==1
@@ -92,7 +98,7 @@ void set_evo_rssi_alarm_level(unsigned char );
 //#define royal_evo_data_ready()  (data_counter>5 && (TCNT0-h_serial_timestamp)>2)  //Valid MPX TRAME start 0x80 and length 35
 //#define royal_evo_data_valid()  (data_counter==35 && data[0]==0x82)  // (194 ou 130); 0x80 dans le mode « Fast Response », 0x82 dans le mode normal, et 0x86 pour le réglage du Fail-Safe
 
-#define set_evo_telemetry(POSITION, UNITE,VALEUR, ALARME) royal_tele[POSITION].unite=UNITE; royal_tele[POSITION].valeur=VALEUR;royal_tele[POSITION].alarme=ALARME
+#define set_evo_telemetry(POSITION, UNITE,VALEUR, ALARME) royal_tele[POSITION].unite=UNITE; royal_tele[POSITION].valeur=VALEUR;royal_tele[POSITION].alarme=ALARME;if(VALEUR>royal_tele[POSITION].high_valeur)royal_tele[POSITION].high_valeur=VALEUR;if(VALEUR<royal_tele[POSITION].low_valeur &&VALEUR!=0)royal_tele[POSITION].low_valeur=VALEUR;
 #define get_evo_telemetry_counter()	evo_tele_ct
 #define reset_trigger_for_next_data()  ooTIMER0_CT=0;ooTIMER0_OVERFLOW_ON;ooTIMER0_SCALE_8;OCR0=0
 #endif

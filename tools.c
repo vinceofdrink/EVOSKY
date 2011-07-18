@@ -25,3 +25,34 @@ void init_moyenne(struct moyenne_u_char * thestruct,unsigned char data)
 	thestruct->data[2]=data;
 	thestruct->data[3]=data;
 }
+
+//allow filtering on input value that must show be send x time (occurrence) to be accounted as good and take place as the last good value.
+
+void init_last_stable_value(struct last_stable_value * thestruct,unsigned char occurrence)
+{
+	thestruct->occurrence=occurrence;
+	thestruct->last_good=0;
+	thestruct->ct=0;
+	thestruct->challenger=0;
+}
+
+signed int compare_and_get_stable(struct last_stable_value * thestruct, signed int value)
+{
+	if(thestruct->last_good==value)
+			return thestruct->last_good;
+
+	if(value==thestruct->challenger)
+		thestruct->ct++;
+	else
+	{
+		thestruct->ct=0;
+		thestruct->challenger=value;
+	}
+	if(thestruct->ct==thestruct->occurrence)
+	{
+		thestruct->ct=0;
+		thestruct->last_good=thestruct->challenger;
+	}
+	return thestruct->last_good;
+
+}

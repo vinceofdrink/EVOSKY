@@ -30,10 +30,10 @@
 #define FPV_CHANEL_MIXING_MARGIN	50		//in uS   ( 1sec /1000 = Milliseconde /1000 = uS)
 
 // Double click must be inside the timming to be valid the more the value is high the more you can take your time to execute the double click
-#define button_doubleclick_timming 	2 //1 =+- 20ms (PPM FRAME)
+#define  BUTTON_DOUBLECLICK_TIMMING 	12  //1 =+- 20ms (PPM FRAME)
 
-#define ROYAL_EVO_UART		0
-#define FRSKY_UART			1
+#define ROYAL_EVO_UART		1
+#define FRSKY_UART			0
 
 
 
