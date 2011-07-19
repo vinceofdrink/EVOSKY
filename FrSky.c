@@ -10,14 +10,14 @@
  * USER CONSTANT
  */
 
-#define	USER_DATA_BUFFER_SIZE	100			// Define the size of the circular buffer for user data
+#define	USER_DATA_BUFFER_SIZE	30			// Define the size of the circular buffer for user data
 
 /**
  * GLOBAL YOU SHOULD NOT ACCES DIRECTLY TO THOSE AS I PROVIDE FUNCTION OR MACRO FOR THAT PURPOSE
  */
 // Sensor & RSSI (Native to frsky module)
-unsigned char g_FrSky_rssi_up_link	=100;     // Store The Rssi Level
-unsigned char g_FrSky_rssi_down_link=100;     // Store The Rssi Level
+unsigned char g_FrSky_rssi_up_link	=	100;     // Store The Rssi Level
+unsigned char g_FrSky_rssi_down_link=	100;     // Store The Rssi Level
 unsigned char g_FrSky_sensor1=0;    		  // Store Value of Sensor 1
 unsigned char g_FrSky_sensor2=0;    		  // Store Value of Sensor 2
 

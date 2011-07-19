@@ -86,7 +86,7 @@ avrdude	-pm128 -cusbasp -u
 #include "royal_evo.h"		//Provide all the function to handle communication with Royal Evo Radio
 #include "FrSky.h"			//Provide all the function to handle communicatio with FRSKY TX
 #include "button.h"			//Provide all the detection of button interaction with user
-void telemetry_with_debug(void);
+void telemetry_debug(unsigned char debug_type);
 
 
 /******************************************
@@ -166,6 +166,11 @@ void telemetry_with_debug(void);
 #define MODE_USB_ROYAL		3   //NOT TESTED BUT SHOULD WORK
 #define MODE_USB_FRSKY		4   //NOT AVAILABLE RIGHT NOW SHOULD BIND THE SAME USB-TO-TTL WITH FRSKY MODULE FOR UPGRADE FIRMWARE FOR EXAMPLE
 
+#define TELE_DISPLAY_STD		0
+#define TELE_DISPLAY_CHANEL		1
+#define TELE_DISPLAY_PPM_OUT	2
+#define TELE_DISPLAY_PPM_IN		3
+#define TELE_DISPLAY_END		4
 /******************************************
  * Main Program                           *
  ******************************************/
@@ -175,7 +180,7 @@ int main(void)
 {
 	unsigned char mode;					//STORE WICH MODE WE RUN THE EVOSKY
 	unsigned char standard_boot=TRUE; 	//TRUE for normal meaning (doing nego with royal and then listening to royal frame) FALSE (waiting about 500ms for nego and then go directly to listining evo frame)
-
+	unsigned char display_mode=TELE_DISPLAY_STD;
 	SET_PORT_AS_OUTPUT(A,7); 			//DEFINE LED PORT AS OUTPUT
 	SET_PORT_HIGH(A,7);					//LIGHT THE LED TO SAY HELLO :)
 
@@ -233,7 +238,7 @@ int main(void)
 
 
 	//Mode will be swichable with button later
-	mode=MODE_FLY;
+	mode=MODE_FLY; //MODE_USB_ROYAL
 	standard_boot=FALSE;
 	switch(mode)
 	{
@@ -246,6 +251,7 @@ int main(void)
 			set_evo_rssi_alarm_level(RSSI_EVO_ALARM);	//Royal Evo RSSI Alarm Level See define for more info
 			init_royal(standard_boot);	//Initialise Cnx with Royal Evo (standard boot means we will wait for real negotiation with royal evo otherwise if we cannot akwnoledge Royal evo we skip try several nego and then start directly to listening to channel position stream
 			init_ppm();					//Initialise PPM Writer
+			init_read_ppm(1);
 			set_evo_telemetry(0,UNIT_LQI,	0				,0);
 			init_button();
 			//We activate the watchdog that will trigger a reset if wdt_reset() is not call every 120MS
@@ -330,17 +336,28 @@ int main(void)
 
 							 break;
 							 case BUTTON1_SINGLE_CLICK:
-								 set_evo_display_mode(EVO_DISPLAY_NORMAL);
+								 //if we are in not in EVO_DISPLAY_NORMAL then resume to normal display
+								 if(get_evo_display_mode()!=EVO_DISPLAY_NORMAL)
+									 set_evo_display_mode(EVO_DISPLAY_NORMAL);
+								 else//make a down cursor move.
+									 evo_cursor_down();
 							 break;
 							 case BUTTON1_DOUBLE_CLICK:
 
 							 break;
 
 							 case BUTTON1_LONG_CLICK:
+								// if(evo_cursor_active())
+
+								// else
 								 set_evo_display_mode(EVO_DISPLAY_LOW);
 							 break;
 
 							 case BUTTON2_SINGLE_CLICK:
+								 if(get_evo_display_mode()!=EVO_DISPLAY_NORMAL)
+										set_evo_display_mode(EVO_DISPLAY_NORMAL);
+									else//make a down cursor move.
+										 evo_cursor_up();
 
 							 break;
 
@@ -350,23 +367,31 @@ int main(void)
 
 							 case BUTTON2_LONG_CLICK:
 								 set_evo_display_mode(EVO_DISPLAY_HIGH);
+
 							 break;
 
 							 case BUTTON_BOTH_SINGLE_CLICK:
-
+								 display_mode++;
+								 if(display_mode==TELE_DISPLAY_END)
+									 display_mode=TELE_DISPLAY_STD;
 							 break;
 						 }
 
+						 if(display_mode==TELE_DISPLAY_STD)
+						 {
+							 //Tester UNIT_D
+							 set_evo_telemetry(0,UNIT_LQI,	get_FrSky_rssi_up_link()				,0);
 
-						 set_evo_telemetry(0,UNIT_LQI,	get_FrSky_rssi_up_link()				,0);
+							 set_evo_telemetry(1,UNIT_LQI,	evo_get_cursor_pos()				,0);
+							 //set_evo_telemetry(1,UNIT_LQI,	get_FrSky_rssi_down_link()				,0);
 
-						 set_evo_telemetry(1,UNIT_LQI,	get_FrSky_rssi_down_link()				,0);
+							 set_evo_telemetry(2,UNIT_V,	(get_FrSky_sensor1()*3.3*10*4/256)	+1	,0);
 
-						 set_evo_telemetry(2,UNIT_V,	get_FrSky_sensor1()*3.3*10*4/256		,0);
-
-						 set_evo_telemetry(3,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
-
-					// _delay_ms(15);
+							 set_evo_telemetry(3,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
+						 }
+						 else
+							 telemetry_debug(display_mode);
+					//_delay_ms(14);
 					 // We wait for ppm frame to be done until that
 					 while (is_ppm_active())
 					 {
@@ -381,10 +406,7 @@ int main(void)
 					//
 						// We reset the serial buffer (we do not use in this project the circular buffer)
 					 reset_trigger_for_next_data(); //Launch again the TIMER0 that monitor if we have data to handle from Royal Evo
-					 //ooTIMER0_CT=0;
-					 //ooTIMER0_OVERFLOW_ON;
-					 //ooTIMER0_SCALE_8;
-					 // OCR0=0;
+
 				}
 			}
 		break;
@@ -406,31 +428,32 @@ int main(void)
 			//THIS IS A BIT A BRUTAL METHOD BUT IT SHOULD WORK WE HAVE NOTHING ELSE TO DO AND NO INTERRUPTION IN BACKGROUND
 			//WAIT TO WIRE A TTL TO USB CONVERTER TO EVOSKY BOARD TO TEST
 
-			SET_PORT_AS_OUTPUT(D,2);
-			SET_PORT_LOW(D,2);
+			SET_PORT_LOW(A,3);
+			SET_PORT_AS_INPUT(A,3);
 
-			SET_PORT_AS_INPUT(D,3);
-			SET_PORT_LOW(D,3);
+			SET_PORT_LOW(A,4);
+			SET_PORT_AS_OUTPUT(A,4);
 
-			SET_PORT_AS_INPUT(A,5);
 			SET_PORT_LOW(A,5);
+			SET_PORT_AS_OUTPUT(A,5);
 
-			SET_PORT_AS_OUTPUT(A,6);
 			SET_PORT_LOW(A,6);
+			SET_PORT_AS_INPUT(A,6);
 
-			while(TRUE)
+
+			while(1)
 			{
 				//COPY STATE OF USB OUTPUT TO ROYAL INPUT
-				if(READ_PORT_INPUT(D,3))
-					SET_PORT_HIGH(A,6);
+				if(READ_PORT_INPUT(A,3))
+					SET_PORT_HIGH(A,5);
 				else
-					SET_PORT_LOW(A,6);
+					SET_PORT_LOW(A,5);
 
 				//COPY STATE OF ROYAL OUTPUT TO USB INPUT
-				if(READ_PORT_INPUT(A,5))
-					SET_PORT_HIGH(D,2);
+				if(READ_PORT_INPUT(A,6))
+					SET_PORT_HIGH(A,4);
 				else
-					SET_PORT_LOW(D,2);
+					SET_PORT_LOW(A,4);
 			}
 
 
@@ -461,56 +484,66 @@ return 1;
 }
 
 
+#if F_CPU == 16000000
+  #define CT_TO_US                        2                  // 2 for prescaler 8
+#elif F_CPU == 18432000
+  #define CT_TO_US                        2.304              //  2.304 for prescaler 8
+#elif F_CPU == 8000000
+  #define CT_TO_US                        1                  //  1 for prescaler 8
+#elif F_CPU == 11059200
+  #define CT_TO_US                        1.3824
+#endif
+
 
 extern unsigned int 	per_cycle_error;
 extern unsigned char 	per_frame_error;
 extern unsigned char 	frame_counter;
-void telemetry_with_debug(void)
+extern volatile	unsigned char 	g_read_ppm_ct;
+void telemetry_debug(unsigned char debug_type)
 {
 
-		unsigned char debug_type=2;
+
 
 		switch (debug_type)
 		{
 			//Show the 9 computed chanel of royal evo
-			case 0:
-				set_evo_telemetry(0,UNIT_LQI,	get_royal_chanel(0)					,0);	//Chanel 1
-				set_evo_telemetry(1,UNIT_LQI,	get_royal_chanel(1)					,0);	//Chanel 2
-				set_evo_telemetry(2,UNIT_LQI,	get_royal_chanel(2)					,0);	//Chanel 3
-				set_evo_telemetry(3,UNIT_LQI,	get_royal_chanel(3)					,0);	//Chanel 4
-				set_evo_telemetry(4,UNIT_LQI,	get_royal_chanel(4)					,0);	//Chanel 5
-				set_evo_telemetry(5,UNIT_LQI,	get_royal_chanel(5)					,0);	//Chanel 6
-				set_evo_telemetry(6,UNIT_LQI,	get_royal_chanel(6)					,0);	//Chanel 7
-				set_evo_telemetry(7,UNIT_LQI,	get_royal_chanel(7)					,0);	//Chanel 8
-				set_evo_telemetry(8,UNIT_LQI,	get_royal_chanel(8)					,0);	//Chanel 9
+			case TELE_DISPLAY_CHANEL:
+				set_evo_telemetry_debug(0,UNIT_LQI,	per_cycle_error						,0);	//Chanel 1
+				set_evo_telemetry_debug(1,UNIT_LQI,	get_royal_chanel(0)					,0);	//Chanel 2
+				set_evo_telemetry_debug(2,UNIT_LQI,	get_royal_chanel(1)					,0);	//Chanel 3
+				set_evo_telemetry_debug(3,UNIT_LQI,	get_royal_chanel(2)					,0);	//Chanel 4
+				set_evo_telemetry_debug(4,UNIT_LQI,	get_royal_chanel(3)					,0);	//Chanel 5
+				set_evo_telemetry_debug(5,UNIT_LQI,	get_royal_chanel(4)					,0);	//Chanel 6
+				set_evo_telemetry_debug(6,UNIT_LQI,	get_royal_chanel(5)					,0);	//Chanel 7
+				set_evo_telemetry_debug(7,UNIT_LQI,	get_royal_chanel(6)					,0);	//Chanel 8
+				set_evo_telemetry_debug(8,UNIT_LQI,	get_royal_chanel(7)					,0);	//Chanel 9
+				set_evo_telemetry_debug(9,UNIT_LQI,	get_royal_chanel(8)					,0);	//Chanel 9
 			break;
-			//Show 3 First values of buffer then royal chanel 1 computed value and then the size of the frame
-			case 1:
-				set_evo_telemetry(0,UNIT_LQI,	serial0_direct_buffer_read(0)		,0);	// 1 char of buffer
-				set_evo_telemetry(1,UNIT_LQI,	serial0_direct_buffer_read(1)		,0);	// 2 char of buffer
-				set_evo_telemetry(2,UNIT_LQI,	serial0_direct_buffer_read(2)		,0);	// 3 char of buffer
-				set_evo_telemetry(3,UNIT_LQI,	get_royal_chanel(0)					,0);	// Chanel 1
-				set_evo_telemetry(4,UNIT_LQI,	serial0_input_writect				,0);	// Royal Evo Buffer Size
+			//Show the -1 to advertize witch debug mode we are and display after the us offset of each PPM chanel
+			case TELE_DISPLAY_PPM_OUT:
+				set_evo_telemetry_debug(0,UNIT_LQI,	-1									,0);	//Chanel 1
+				set_evo_telemetry_debug(1,UNIT_LQI,	get_ppm1_chanel(0)/CT_TO_US			,0);	//Chanel 2
+				set_evo_telemetry_debug(2,UNIT_LQI,	get_ppm1_chanel(1)/CT_TO_US			,0);	//Chanel 3
+				set_evo_telemetry_debug(3,UNIT_LQI,	get_ppm1_chanel(2)/CT_TO_US			,0);	//Chanel 4
+				set_evo_telemetry_debug(4,UNIT_LQI,	get_ppm1_chanel(3)/CT_TO_US			,0);	//Chanel 5
+				set_evo_telemetry_debug(5,UNIT_LQI,	get_ppm1_chanel(4)/CT_TO_US			,0);	//Chanel 6
+				set_evo_telemetry_debug(6,UNIT_LQI,	get_ppm1_chanel(5)/CT_TO_US			,0);	//Chanel 7
+				set_evo_telemetry_debug(7,UNIT_LQI,	get_ppm1_chanel(6)/CT_TO_US			,0);	//Chanel 8
+				set_evo_telemetry_debug(8,UNIT_LQI,	get_ppm1_chanel(7)/CT_TO_US			,0);	//Chanel 9
 			break;
 
-			case 2:
-							set_evo_telemetry(0,UNIT_LQI,	frame_counter						,0);
-							if(per_frame_error!=0)
-							{
-
-							set_evo_telemetry(1,UNIT_LQI,	per_frame_error						,0);	// 2 char of buffer
-							set_evo_telemetry(2,UNIT_LQI,	per_cycle_error						,0);	// 3 char of buffer
-							set_evo_telemetry(3,UNIT_LQI,	serial0_direct_buffer_read(0)		,0);	// 2 char of buffer
-							set_evo_telemetry(4,UNIT_LQI,	serial0_direct_buffer_read(1)		,0);	// 2 char of buffer
-							set_evo_telemetry(5,UNIT_LQI,	serial0_direct_buffer_read(2)		,0);	// 3 char of buffer
-							}
-							else
-							{
-								set_evo_telemetry(6,UNIT_LQI,	serial0_direct_buffer_read(0)		,0);	// 2 char of buffer
-								set_evo_telemetry(7,UNIT_LQI,	serial0_direct_buffer_read(1)		,0);	// 2 char of buffer
-								set_evo_telemetry(8,UNIT_LQI,	serial0_direct_buffer_read(2)		,0);	// 3 char of buffer
-							}
-
+			//Show the -2 to advertize witch debug mode we are and display after the us offset of each  INPUT reading from HEADTRACKER PPM chanel
+			case TELE_DISPLAY_PPM_IN:
+				set_evo_telemetry_debug(0,UNIT_LQI,	-2									,0);
+				set_evo_telemetry_debug(1,UNIT_LQI,	g_read_ppm_ct						,0);
+				set_evo_telemetry_debug(2,UNIT_LQI,	read_ppm_chanel(0)/CT_TO_US			,0);	//Chanel 2
+				set_evo_telemetry_debug(3,UNIT_LQI,	read_ppm_chanel(1)/CT_TO_US			,0);	//Chanel 3
+				set_evo_telemetry_debug(4,UNIT_LQI,	read_ppm_chanel(2)/CT_TO_US			,0);	//Chanel 4
+				set_evo_telemetry_debug(5,UNIT_LQI,	read_ppm_chanel(3)/CT_TO_US			,0);	//Chanel 5
+				set_evo_telemetry_debug(6,UNIT_LQI,	read_ppm_chanel(4)/CT_TO_US			,0);	//Chanel 6
+				set_evo_telemetry_debug(7,UNIT_LQI,	read_ppm_chanel(5)/CT_TO_US			,0);	//Chanel 7
+				set_evo_telemetry_debug(8,UNIT_LQI,	read_ppm_chanel(6)/CT_TO_US			,0);	//Chanel 8
+				set_evo_telemetry_debug(9,UNIT_LQI,	read_ppm_chanel(7)/CT_TO_US			,0);	//Chanel 9
 			break;
 
 		}

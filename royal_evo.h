@@ -8,6 +8,7 @@
 #include "settings.h"
 #ifndef ROYAL_EVO_H_
 #define ROYAL_EVO_H_
+
 struct royal_tememetry_struct
 {
     unsigned char unite;
@@ -19,12 +20,19 @@ struct royal_tememetry_struct
 
 struct royal_telmetry_memo_struct
 {
-	signed int 		alarm_level[12];
+	signed int 		alarm_level[NB_CHANEL_TELEMETRY];		//if negative value this will be take as a under the value alarm if positive it will be an over the value alarm
+	unsigned char 	multiplier_value[NB_CHANEL_TELEMETRY];	//the value will be divided by 100 and used to multplie the current input value
+	unsigned int	fpv_chanel_1_offset;
+	unsigned int	fpv_chanel_2_offset;
+	unsigned int 	fpv_chanel_1_max;
+	unsigned int 	fpv_chanel_1_min;
+	unsigned int 	fpv_chanel_2_max;
+	unsigned int 	fpv_chanel_2_min;
 };
 
 #if defined(ROYAL_EVO_C_)
 #else
-extern struct royal_tememetry_struct  royal_tele[14];
+extern struct royal_tememetry_struct  royal_tele[];
 #endif
 
 //Royal Evo Binding to UART this allow to swing RoyalEvo from UART0 to UART1
@@ -38,6 +46,7 @@ extern struct royal_tememetry_struct  royal_tele[14];
 #define	evo_uart_direct_buffer_read(X)	serial0_direct_buffer_read(X)
 #define evo_uart_input_writect			serial0_input_writect
 #endif
+
 #if ROYAL_EVO_UART == 1
 #define evo_uart_change_rate(X)			serial1_change_rate(X)
 #define evo_uart_init(X)				serial1_init(X)
@@ -74,8 +83,9 @@ extern struct royal_tememetry_struct  royal_tele[14];
 
 extern unsigned int evo_rssi;
 extern signed int MPX_voie[16];
-
 extern unsigned char evo_tele_ct;
+
+
 //FUNCTION DECLARATION
 void init_royal(unsigned char standard_boot);
 void decode_evo_data(void);
@@ -88,7 +98,16 @@ void send_range(void);
 void send_evo_telemetry();
 void set_evo_rssi_alarm_level(unsigned char );
 void set_evo_display_mode(unsigned char );
+unsigned char get_evo_display_mode(void );
 void reset_telemetry(void);
+void evo_cursor_down(void);
+void evo_cursor_up(void);
+unsigned char evo_cursor_active(void);
+unsigned char evo_get_cursor_pos(void);
+void evo_reset_input_selector(void);
+signed int evo_input_selector_value(void);
+void store_evo_model(unsigned char pos);
+void init_evo_model_storage(unsigned char pos);
 
 //MACRO DEFINED TO AVOID FUNCTION CALL THAT COST A BIT IN PROC
 #define royal_trame_ok() OCR0==1
@@ -99,6 +118,7 @@ void reset_telemetry(void);
 //#define royal_evo_data_valid()  (data_counter==35 && data[0]==0x82)  // (194 ou 130); 0x80 dans le mode « Fast Response », 0x82 dans le mode normal, et 0x86 pour le réglage du Fail-Safe
 
 #define set_evo_telemetry(POSITION, UNITE,VALEUR, ALARME) royal_tele[POSITION].unite=UNITE; royal_tele[POSITION].valeur=VALEUR;royal_tele[POSITION].alarme=ALARME;if(VALEUR>royal_tele[POSITION].high_valeur)royal_tele[POSITION].high_valeur=VALEUR;if(VALEUR<royal_tele[POSITION].low_valeur &&VALEUR!=0)royal_tele[POSITION].low_valeur=VALEUR;
+#define set_evo_telemetry_debug(POSITION, UNITE,VALEUR, ALARME) royal_tele[POSITION].unite=UNITE; royal_tele[POSITION].valeur=VALEUR;royal_tele[POSITION].alarme=ALARME;
 #define get_evo_telemetry_counter()	evo_tele_ct
 #define reset_trigger_for_next_data()  ooTIMER0_CT=0;ooTIMER0_OVERFLOW_ON;ooTIMER0_SCALE_8;OCR0=0
 #endif

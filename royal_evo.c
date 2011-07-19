@@ -2,6 +2,17 @@
 // This Section handle all the transaction IN & OUT Between Arduino and Royal Evo                         
 // Almost all the code is derivated or copied from the excellent work of YannickF Project MPX2PPM        
 // http://www.yannickf.net/spip/spip.php?article106
+/*
+
+
+
+0x80 fast response
+0x82 normal mode
+add 4 for fail-safe (0x84 or 0x86)
+So, I confirm :
+Fast-mode is on bit 1
+Fail-safe is on bit 2
+*/
 /***********************************************************************************************************/
 #include "settings.h"
 #include <util/delay.h>
@@ -12,6 +23,10 @@
 #include "royal_evo.h"
 #include "macro_atmega.h"
 
+
+
+
+
 #define  ROYAL_MAX_CHANEL_VALUE 1950		// if channel value of royal evo is >ROYAL_MAX_CHANEL_VALUE or <ROYAL_MAX_CHANEL_VALUE then value is presumed not valid
 
 #define MODE_NORMAL				0x82		//DEC 130
@@ -19,21 +34,33 @@
 #define MODE_FAIL_SAFE			0x86		//DEC 134
 
 
+#define CHANEL_SELECTOR_THRESOLD	300		//DELTA OF VALUE (from royal evo chanel scale) NEED TO GUESS WICH STICK THE USER WILL USE TO MODIFY VALUE
 
 signed int MPX_voie[16]; //Multiplex Data Chanel
+signed int MPX_voie_selector[NB_CHANEL_EVO];
+unsigned char MPX_voie_current_selector=0xFF;
+
 char nbvoies=0; 
 unsigned char emulation_mode=1;
 unsigned int evo_rssi=100;
 unsigned char evo_alarm=30;
 unsigned char evo_tele_ct=0;		//COUNTER OF TELEMETRY TO SEND FOR EACH FRAME
 
+//Display context variable
 unsigned char evo_display_mode=EVO_DISPLAY_NORMAL;
+unsigned char evo_cursor_blink=0;
+unsigned char evo_cursor_blink_state=0;
+unsigned char evo_cursor_timestamp=255;
+
 
 unsigned char 	frame_counter=0;
 unsigned int 	per_cycle_error=0;
 unsigned char 	per_frame_error=0;
-struct royal_tememetry_struct  royal_tele[12];
+struct royal_tememetry_struct  royal_tele[NB_CHANEL_TELEMETRY];
 struct royal_telmetry_memo_struct royal_memo;
+
+
+
 /*
 au dÈpart, la communication est ‡ 19200 baud
 la radio envoie ´ v ª
@@ -60,7 +87,8 @@ temps PPM		n.m			950µs	1500µs	2050µs	n.m
 data HFMS	-1937	-1761	0	1760	1936
 data O24RCP		950	1500	2050
 
-
+LINK from -1521 to +1520 : OK
+but -1976 to +1975 is the protocol for 35/40-41/72 MHz module ?
  */
 // The timer is activated after the intro sequence and is reset after each input event of UART0
 // If we overflow we do presume that we have a new frame ready from royal evo or nothing and we will trigger again the timer (see main)
@@ -70,13 +98,41 @@ ISR(TIMER0_OVF_vect)
 	OCR0=1;
 	evo_uart_input_writect=0;
 }
-
-void store_model()
+/******************************************
+ * Storing and retreiving default alarm value and value adjustement variable
+ */
+void store_evo_model(unsigned char pos)
 {
 	eeprom_busy_wait();
-	eeprom_write_block(&royal_memo,sizeof(royal_memo)*0,sizeof(royal_memo));
-	eeprom_update_block(&royal_memo,sizeof(royal_memo)*0,sizeof(royal_memo));
+
+	eeprom_update_block(&royal_memo,(uint8_t*)1+(sizeof(royal_memo)*pos),sizeof(royal_memo));
 }
+
+void init_evo_model_storage(unsigned char pos)
+{
+	unsigned char i;
+	for(i=0;i!=NB_CHANEL_TELEMETRY;i++)
+	{
+		royal_memo.alarm_level[i]=0;
+		royal_memo.multiplier_value[i]=100;
+	}
+
+	//Check if we have already initialise eeproom by read first byte that should be equal to 147 (this is arbitrary but a reset atmega should contain only 0xFF value)
+	eeprom_busy_wait();
+	if(eeprom_read_byte((uint8_t*)0)!=147)
+	{
+		eeprom_busy_wait();
+		eeprom_write_byte((uint8_t*)0,147);
+		for(i=0;i!=NB_MAX_MODEL_MEMORY;i++)
+		{
+			eeprom_busy_wait();
+			eeprom_write_block(&royal_memo,(uint8_t*)1+(sizeof(royal_memo)*i),sizeof(royal_memo));
+		}
+	}
+	eeprom_busy_wait();
+	eeprom_read_block(&royal_memo,(uint8_t*)1+(sizeof(royal_memo)*i),sizeof(royal_memo));
+}
+
 
 void init_royal(unsigned char standard_boot)
 {
@@ -106,7 +162,7 @@ void init_royal(unsigned char standard_boot)
 //used on init and on display context switch
 void reset_telemetry(void)
 {
-	for(int i=0;i<12;i++)
+	for(int i=0;i<NB_CHANEL_TELEMETRY;i++)
 	{
 	   royal_tele[i].unite=0;
 	   royal_tele[i].valeur=0;
@@ -164,7 +220,7 @@ void decode_evo_data(void)
 
 
 #if F_CPU == 11059200
-      set_ppm1_chanel(i,MPX_voie[i]-(MPX_voie[i]>>2)+(MPX_voie[i]>>7));
+      set_ppm1_chanel(i,MPX_voie[i]-(MPX_voie[i]>>1));
 #elif F_CPU == 7372800
       set_ppm1_chanel(MPX_voie[i]*16/44);
 #endif
@@ -394,7 +450,8 @@ void send_evo_telemetry()
   if(royal_tele[ evo_tele_ct].unite==0)
     return;
   signed int valeur=0;
-
+if(evo_cursor_timestamp!=255)
+	evo_cursor_timestamp++;
   switch(evo_display_mode)
   {
   	  case EVO_DISPLAY_NORMAL:
@@ -413,13 +470,30 @@ void send_evo_telemetry()
   //valeur=valeur*10; //inutile depuis le firmware 3.41
   if (royal_tele[evo_tele_ct].alarme) valeur++; // on ajoute 1 si on veut l'alarme
 
-  //1er octet (alarme de port√àe)
-  if (evo_rssi<=evo_alarm && evo_alarm!=0) evo_uart_writechar(0x40);
-  else evo_uart_writechar(0x00);
-  //2e octet
+  //Byte 1
+  if (evo_rssi<=evo_alarm && evo_alarm!=0)
+	  evo_uart_writechar(0x40);
+  else
+	  evo_uart_writechar(0x00);
+
+  //Byte 2
   evo_uart_writechar(0x01);// pas selon stoeckli
-  //3e octet (position ‚Ä° l'√àcran + unit√à de mesure)
+
+  //Byte 3
   evo_uart_writechar( (evo_tele_ct<<4) + royal_tele[evo_tele_ct].unite );
+
+
+  if(evo_cursor_blink==evo_tele_ct && evo_cursor_timestamp!=255)
+  {
+	  if( (evo_cursor_blink_state=!evo_cursor_blink_state) )
+		  valeur=valeur;
+	  else
+		  if(valeur==0)
+		  valeur=-(valeur+2);
+		  else
+		  valeur=-valeur;
+  }
+
   //4e octet (poids faible de la valeur)
   evo_uart_writechar( (char)valeur );
   //5e octet (poids fort de la valeur)
@@ -427,8 +501,13 @@ void send_evo_telemetry()
   // on dirait qu'il faut finir par OO selon stoeckli
   evo_uart_writechar(0x00);
   evo_tele_ct++;
-  if(royal_tele[ evo_tele_ct].unite==0)
-   evo_tele_ct=0;
+
+  //Avoid overflow
+  if(evo_tele_ct== NB_CHANEL_TELEMETRY)
+	  evo_tele_ct=0;
+ //we stop if we reach the last assigned telemetry chanel
+  if(royal_tele[ evo_tele_ct].unite==0 )
+	  evo_tele_ct=0;
 }
 /**
  * Set the level of RSSI alarm of royal Evo if set at 0 there will never be Royal Evo Alarm
@@ -448,4 +527,60 @@ void set_evo_display_mode(unsigned char displaymode)
 {
 	evo_display_mode=displaymode;
 }
+
+unsigned char get_evo_display_mode(void)
+{
+	return evo_display_mode;
+}
+unsigned char evo_cursor_active(void)
+{
+	return evo_cursor_timestamp!=255;
+}
+
+void evo_cursor_down(void)
+{
+	evo_cursor_blink++;
+	if(evo_cursor_blink== NB_CHANEL_TELEMETRY)
+		evo_cursor_blink=0;
+	if(royal_tele[ evo_cursor_blink].unite==0)
+		evo_cursor_blink=0;
+	evo_cursor_timestamp=0;
+}
+void evo_cursor_up(void)
+{
+	if(evo_cursor_blink==0)
+		evo_cursor_blink=0;
+	else
+		evo_cursor_blink--;
+	evo_cursor_timestamp=0;
+}
+unsigned char evo_get_cursor_pos(void)
+{
+	return evo_cursor_blink;
+}
+void evo_reset_input_selector(void)
+{
+	unsigned char i;
+	MPX_voie_current_selector=0xFF;
+	for(i=0;i!=NB_CHANEL_EVO;i++)
+		MPX_voie_selector[i]=MPX_voie[i];
+}
+signed int evo_input_selector_value(void)
+{
+	unsigned char i;
+	//We do not know right now wich will be our channel selector
+	if(MPX_voie_current_selector==0xFF)
+	{
+		for(i=0;i!=NB_CHANEL_EVO;i++)
+			if(MPX_voie_selector[i]>(MPX_voie[i]+CHANEL_SELECTOR_THRESOLD) || MPX_voie_selector[i]<(MPX_voie[i]-CHANEL_SELECTOR_THRESOLD))
+			MPX_voie_current_selector=i;
+
+
+		return 0;
+	}
+	else
+		return MPX_voie[MPX_voie_current_selector]-MPX_voie_selector[MPX_voie_current_selector];
+}
+
+
 

@@ -8,6 +8,10 @@
 #ifndef SETTINGS_H_
 #define SETTINGS_H_
 
+/*GENERAL SETTING*/
+#define NB_CHANEL_EVO 		9
+#define NB_CHANEL_TELEMETRY 		16
+#define NB_MAX_MODEL_MEMORY			10
 /******************************************
  * USER DEFINED OPTION                    *
  ******************************************/
@@ -30,7 +34,7 @@
 #define FPV_CHANEL_MIXING_MARGIN	50		//in uS   ( 1sec /1000 = Milliseconde /1000 = uS)
 
 // Double click must be inside the timming to be valid the more the value is high the more you can take your time to execute the double click
-#define  BUTTON_DOUBLECLICK_TIMMING 	12  //1 =+- 20ms (PPM FRAME)
+#define  BUTTON_DOUBLECLICK_TIMMING 	12  //1 =+- 20ms (PPM FRAME) 12 seem a acceptable value
 
 #define ROYAL_EVO_UART		1
 #define FRSKY_UART			0

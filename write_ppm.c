@@ -8,6 +8,37 @@
  * As an upgrade i plan to allow the generation of 2 distinct PPM stream using the COMP_B register comparator
  * So do not try to set NUMBER_OF_PPM_SIGNAL at 2
  *
+ *
+ *
+ *
+ *
+ *
+ *pulse[i]=1500+(MPX_voie[i]*16/44);
+
+16/44 is the coefficient I determine with my oscilloscope !
+With this coefficient I didn't have to change the setup of my RC models....
+
+---
+MPX pulse are (at 100%) from 950 to 2050 microseconds (center=1500)
+so : 550 microseconds = 1520 in MPX protocol
+so : coefficient = 550/1520 = 16/44 (approx. but permit to use 16 bits signed values.....)
+ *
+ *
+ *% on radio -> datas -> original PPM -> restituted PPM (if my algorithm works)
+-110% -> -1937
+-100% -> -1761 -> 950 탎 -> 953 탎
+0% -> 0 -> 1500 탎 -> 1500 탎
++100% -> 1760 -> 2050 탎 -> 2045 탎
++110% -> 1936
+
+
+
+OK, disassembled the EVO 3.41 code. The formula for converting the MLINK pulse output for each channel is:
+
+((signed output value + 1521) * .361842) + 950
+
+That gives you the 100% correct value. The range is hard coded at 950us to 2050us.
+
  * Typical usage is
  *
  */
@@ -36,8 +67,8 @@
 #define CT_TO_US						  0.92159
 #endif
 
-#define PPM_PULSE			300   * CT_TO_US   //in us PULSE
-#define PPM_NEUTRAL			1200  * CT_TO_US   //in us NEUTRAL_POSTION = 1500-PULSE
+#define PPM_PULSE						400   * CT_TO_US   //in us PULSE
+#define PPM_NEUTRAL						1100  * CT_TO_US   //in us NEUTRAL_POSTION = 1500-PULSE
 #define PPM_FULL_FRAME                  17000 * CT_TO_US   //in us Length of a full PPM frame
 #define PPM_OFFSET                      1 * CT_TO_US       //in us Wait after ppm_write for frame begin at least 1
 
@@ -49,7 +80,7 @@
 int g_chanel1[MAX_CHANEL_NUMBER];                           // channels encoded from -500 to 500 (middle point 0) (its litteraly the offset around middle point in us)
 unsigned int  g_ppm1_timing[(MAX_CHANEL_NUMBER*2)+2];       // Store all the toogle point to draw a full ppm frame
 unsigned char g_ppm1_ct      = 0;                          // compare point index for currently active
-unsigned char g_ppm_active   =0;
+volatile unsigned char g_ppm_active   =0;
 
 //EXTRA GLOBAL FOR PPM2 SIGNAL
 #if defined(PPM_2_SIGNAL)

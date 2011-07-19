@@ -9,6 +9,10 @@
  *  - Double click
  *  - Long Hold down
  *
+ *  As i do not use actualy a timer to mesure double click or long click
+ *  increment a counter on each get_button_state() call every time a produce a ppm outpout
+ *  so timming as a presision of 1S /50 (50 event per second)
+ *
  */
 
 
@@ -107,13 +111,17 @@ unsigned char get_button_state(void)
 
 ISR(INT4_vect)
 {
+	cli();
 	SB_LOW(EIMSK,INT4); // Deactivate interrupt prevent boucing
+	sei();
 	evo_bt_timestamp=255;
 	evo_bt1++;
 }
 ISR(INT5_vect)
 {
+	cli();
 	SB_LOW(EIMSK,INT5); // Deactivate interrupt prevent boucing
+	sei();
 	evo_bt_timestamp=255;
 	evo_bt2++;
 }
