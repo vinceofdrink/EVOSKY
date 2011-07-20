@@ -282,7 +282,7 @@ int main(void)
 					#endif
 
 					 Read_FrSky();//Read and decode Data receive from FRSKY
-
+					 compute_ppm_input();//Decode the last PPM captured data
 
 					//HANDLING TELEMETRY USER SERIAL DATA
 					 /*
@@ -376,7 +376,7 @@ int main(void)
 									 display_mode=TELE_DISPLAY_STD;
 							 break;
 						 }
-
+						 static unsigned int compute_free_cycle=0;
 						 if(display_mode==TELE_DISPLAY_STD)
 						 {
 							 //Tester UNIT_D
@@ -388,14 +388,19 @@ int main(void)
 							 set_evo_telemetry(2,UNIT_V,	(get_FrSky_sensor1()*3.3*10*4/256)	+1	,0);
 
 							 set_evo_telemetry(3,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
+
+							 set_evo_telemetry(4,UNIT_LQI,	compute_free_cycle		,0);
 						 }
 						 else
 							 telemetry_debug(display_mode);
 					//_delay_ms(14);
 					 // We wait for ppm frame to be done until that
+						 compute_free_cycle=0;
 					 while (is_ppm_active())
 					 {
-						 Read_FrSky();
+
+						 //Read_FrSky();
+						 compute_free_cycle++;
 					 }
 
 

@@ -162,7 +162,7 @@ void write_ppm(void)
 ISR(TIMER1_COMPA_vect)
 {
 
-   cli();
+
     #if defined(PPM_PIN_OSCILLOSCOPE_SYNC)
      if(g_ppm1_ct==0)
         digitalWrite(PPM_PIN_OSCILLOSCOPE_SYNC, HIGH);
@@ -190,7 +190,6 @@ ISR(TIMER1_COMPA_vect)
       OCR1A = g_ppm1_timing[g_ppm1_ct];
       g_ppm1_ct++;
     }
-sei();
 }
 
 

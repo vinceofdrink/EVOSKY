@@ -5,8 +5,8 @@
  *      Author: vince
  */
 //Taille des buffers respectif
-#define SERIAL0_BUFFER	100   // This are very conservative value for the project we could use much smaller buffer.
-#define SERIAL1_BUFFER	100	  // This are very conservative value for the project we could use much smaller buffer.
+#define SERIAL0_BUFFER	50   // This are very conservative value for the project we could use much smaller buffer.
+#define SERIAL1_BUFFER	50	  // This are very conservative value for the project we could use much smaller buffer.
 
 
 #ifndef SERIAL_H_

@@ -154,8 +154,8 @@
     //#define ooTIMER1_INT_A_COMP(BIT)        TIMSK1|= BIT<<OCIE1A   // Output Compare A Match Interrupt Enable
 
     //#define ooTIMER1_INT_OVERFLOW_CT(BIT)   TIMSK1|= BIT<<TOIE1    // CT Overflow Interrupt Enable
-    #define	ooTIMER1_CT			TCNT1
-    #define     ooTIMER1_STOP                   TCCR1B = 0<<CS12 | 0<<CS11 | 0<<CS10  //(Timer/Counter stopped)
+    #define	ooTIMER1_CT						TCNT1
+    #define ooTIMER1_STOP                   TCCR1B = 0<<CS12 | 0<<CS11 | 0<<CS10  //(Timer/Counter stopped)
 
     #define ooTIMER1_SCALE_8                TCCR1B = 0<<CS12 | 1<<CS11 | 0<<CS10  //0
 #endif

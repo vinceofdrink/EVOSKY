@@ -10,7 +10,7 @@
  * USER CONSTANT
  */
 
-#define	USER_DATA_BUFFER_SIZE	30			// Define the size of the circular buffer for user data
+#define	USER_DATA_BUFFER_SIZE	40			// Define the size of the circular buffer for user data
 
 /**
  * GLOBAL YOU SHOULD NOT ACCES DIRECTLY TO THOSE AS I PROVIDE FUNCTION OR MACRO FOR THAT PURPOSE
