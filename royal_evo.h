@@ -33,6 +33,7 @@ struct royal_telmetry_memo_struct
 #if defined(ROYAL_EVO_C_)
 #else
 extern struct royal_tememetry_struct  royal_tele[];
+extern volatile struct royal_telmetry_memo_struct	royal_memo;
 #endif
 
 //Royal Evo Binding to UART this allow to swing RoyalEvo from UART0 to UART1

@@ -64,7 +64,7 @@ avrdude	-pm128 -cusbasp -u
 #include <inttypes.h>
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
-
+#include <avr/eeprom.h>
 
 /******************************************
  * Custom function library related to the project
@@ -246,14 +246,25 @@ int main(void)
 		case MODE_FLY:
 		case MODE_FLY_FPV:
 		case MODE_FLY_FPV_MIX:
+
+
+
+
+			// eeprom_write_byte ((uint8_t*)0, sizeof(royal_memo));
 			SET_PORT_HIGH(A,0); 	 	//WE LIGHT UP MAX232 VCC
 			Init_FrSky();				//Initialise Cnx with Frsky Module
 			set_evo_rssi_alarm_level(RSSI_EVO_ALARM);	//Royal Evo RSSI Alarm Level See define for more info
 			init_royal(standard_boot);	//Initialise Cnx with Royal Evo (standard boot means we will wait for real negotiation with royal evo otherwise if we cannot akwnoledge Royal evo we skip try several nego and then start directly to listening to channel position stream
+
+			init_evo_model_storage(0);
+			royal_memo.fpv_chanel_1_offset++;
+			store_evo_model(0);
 			init_ppm();					//Initialise PPM Writer
 			init_read_ppm(1);
 			set_evo_telemetry(0,UNIT_LQI,	0				,0);
 			init_button();
+
+
 			//We activate the watchdog that will trigger a reset if wdt_reset() is not call every 120MS
 			#if OPTION_WATCHDOG==1
 				wdt_enable(WDTO_120MS);
@@ -382,14 +393,14 @@ int main(void)
 							 //Tester UNIT_D
 							 set_evo_telemetry(0,UNIT_LQI,	get_FrSky_rssi_up_link()				,0);
 
-							 set_evo_telemetry(1,UNIT_LQI,	evo_get_cursor_pos()				,0);
+							 set_evo_telemetry(1,UNIT_LQI,	royal_memo.fpv_chanel_1_offset			,0);
 							 //set_evo_telemetry(1,UNIT_LQI,	get_FrSky_rssi_down_link()				,0);
 
 							 set_evo_telemetry(2,UNIT_V,	(get_FrSky_sensor1()*3.3*10*4/256)	+1	,0);
 
 							 set_evo_telemetry(3,UNIT_V,	get_FrSky_sensor2()*3.3*10*4/256		,0);
 
-							 set_evo_telemetry(4,UNIT_LQI,	compute_free_cycle		,0);
+							 set_evo_telemetry(4,UNIT_LQI,	compute_free_cycle/100		,0);
 						 }
 						 else
 							 telemetry_debug(display_mode);

@@ -67,6 +67,7 @@ unsigned char g_read_ppm_ct_reader=0;
 void init_read_ppm(unsigned char signal_type)
 {
 	unsigned char i;
+
 	ooTIMER3_NORMAL_MODE;
 
 

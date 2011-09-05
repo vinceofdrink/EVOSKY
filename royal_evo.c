@@ -57,7 +57,7 @@ unsigned char 	frame_counter=0;
 unsigned int 	per_cycle_error=0;
 unsigned char 	per_frame_error=0;
 struct royal_tememetry_struct  royal_tele[NB_CHANEL_TELEMETRY];
-struct royal_telmetry_memo_struct royal_memo;
+volatile struct royal_telmetry_memo_struct royal_memo;
 
 
 
@@ -103,9 +103,18 @@ ISR(TIMER0_OVF_vect)
  */
 void store_evo_model(unsigned char pos)
 {
-	eeprom_busy_wait();
 
-	eeprom_update_block(&royal_memo,(uint8_t*)1+(sizeof(royal_memo)*pos),sizeof(royal_memo));
+
+	eeprom_write_block(( const void *) &royal_memo,( void *) 1+(sizeof(royal_memo)*pos),sizeof(royal_memo));
+	/*
+		unsigned int i;
+		for(i=0;i!=sizeof(royal_memo);i++)
+		{
+			eeprom_busy_wait();
+			eeprom_write_byte((uint8_t*)1+i,((unsigned char * )&royal_memo)[i]);
+		}
+	*/
+		//void eeprom_write_block (void *pointer_eeprom, const void *pointer_ram, size_t n)
 }
 
 void init_evo_model_storage(unsigned char pos)
@@ -118,7 +127,9 @@ void init_evo_model_storage(unsigned char pos)
 	}
 
 	//Check if we have already initialise eeproom by read first byte that should be equal to 147 (this is arbitrary but a reset atmega should contain only 0xFF value)
+	/*
 	eeprom_busy_wait();
+
 	if(eeprom_read_byte((uint8_t*)0)!=147)
 	{
 		eeprom_busy_wait();
@@ -129,8 +140,12 @@ void init_evo_model_storage(unsigned char pos)
 			eeprom_write_block(&royal_memo,(uint8_t*)1+(sizeof(royal_memo)*i),sizeof(royal_memo));
 		}
 	}
+
+
+	*/
 	eeprom_busy_wait();
-	eeprom_read_block(&royal_memo,(uint8_t*)1+(sizeof(royal_memo)*i),sizeof(royal_memo));
+	//void eeprom_read_block (void *pointer_ram, const void *pointer_eeprom, size_t n)
+	eeprom_read_block(( void *)&royal_memo,(const void*) 1+(sizeof(royal_memo)*pos),sizeof(royal_memo));
 }
 
 
