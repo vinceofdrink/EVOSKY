@@ -88,7 +88,7 @@ avrdude	-pm128 -cusbasp -u
 #include "button.h"			//Provide all the detection of button interaction with user
 void telemetry_debug(unsigned char debug_type);
 
-
+//commentaire
 /******************************************
  * PIN USED ON ATMEGA128               	  *
 ******************************************/
